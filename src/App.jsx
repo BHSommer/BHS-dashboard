@@ -144,6 +144,8 @@ function Shell({ children }) {
         .fade { animation: pop .25s ease; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .spin { animation: spin 1s linear infinite; }
+        @keyframes slideIn { from { transform: translateX(100%); } to { transform: none; } }
+        .sidebar { animation: slideIn .22s ease; }
       `}</style>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "28px 20px 60px" }}>{children}</div>
     </div>
@@ -265,10 +267,11 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove }) {
   const [pendingStatus, setPendingStatus] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [imgError, setImgError] = useState(null);
-  const [lightbox, setLightbox] = useState(null);
+  const [viewerIndex, setViewerIndex] = useState(null);
   useEffect(() => { setNotesDraft(car.notes || ""); }, [car.id]);
 
   const images = car.images?.length ? car.images : (car.image_url ? [car.image_url] : []);
+  const MAX_IMAGES = 10;
 
   const applyStatus = (s) => { onSetStatus(car, s, note.trim() || null); setNote(""); setPendingStatus(null); };
 
@@ -276,10 +279,15 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove }) {
     const files = Array.from(e.target.files || []);
     e.target.value = "";
     if (!files.length) return;
+    const room = MAX_IMAGES - images.length;
+    if (room <= 0) { setImgError(`Du kan højst have ${MAX_IMAGES} billeder. Fjern et først.`); return; }
+    const toUpload = files.slice(0, room);
+    const skipped = files.length - toUpload.length;
     setImgError(null); setUploading(true);
     try {
-      const newUrls = await uploadCarImages(car.id, files);
+      const newUrls = await uploadCarImages(car.id, toUpload);
       await onUpdate(car.id, { images: [...images, ...newUrls], image_url: null });
+      if (skipped > 0) setImgError(`Maks ${MAX_IMAGES} billeder — ${skipped} blev ikke uploadet.`);
     } catch (err) {
       setImgError(err.message || "Upload fejlede.");
     } finally {
@@ -289,7 +297,9 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove }) {
 
   const removeImage = async (url) => {
     if (!confirm("Fjern dette billede?")) return;
-    await onUpdate(car.id, { images: images.filter((u) => u !== url), image_url: null });
+    const next = images.filter((u) => u !== url);
+    await onUpdate(car.id, { images: next, image_url: null });
+    setViewerIndex(null);
   };
 
   const makeCover = async (url) => {
@@ -303,49 +313,6 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove }) {
       </button>
       <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 14, overflow: "hidden" }}>
         <div style={{ height: 6, background: STATUSES[car.status].color }} />
-        {/* Billed-galleri */}
-        <div style={{ background: "#eef2f7" }}>
-          <div style={{ position: "relative", height: 300 }}>
-            {images.length ? (
-              <img src={images[0]} alt={`${car.make} ${car.model}`} onClick={() => setLightbox(images[0])}
-                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", cursor: "zoom-in" }} />
-            ) : (
-              <div style={{ height: "100%", display: "grid", placeItems: "center", color: "#cbd5e1", gap: 8 }}>
-                <Camera size={44} strokeWidth={1.5} />
-                <span style={{ fontSize: 13, color: "#94a3b8" }}>Ingen billeder endnu</span>
-              </div>
-            )}
-            <label style={{ position: "absolute", right: 12, bottom: 12, display: "flex", alignItems: "center", gap: 6, background: "rgba(15,23,42,.85)", color: "#fff", borderRadius: 9, padding: "8px 13px", fontSize: 13, fontWeight: 600, cursor: uploading ? "default" : "pointer", backdropFilter: "blur(4px)" }}>
-              {uploading ? <Loader2 size={15} className="spin" /> : <ImagePlus size={15} />}
-              {uploading ? "Uploader…" : "Tilføj billeder"}
-              <input type="file" accept="image/*" multiple onChange={handleImages} disabled={uploading} style={{ display: "none" }} />
-            </label>
-          </div>
-          {images.length > 0 && (
-            <div style={{ display: "flex", gap: 8, padding: 12, overflowX: "auto" }}>
-              {images.map((url, i) => (
-                <div key={url} style={{ position: "relative", flex: "0 0 auto" }}>
-                  <img src={url} alt={`Billede ${i + 1}`} onClick={() => setLightbox(url)}
-                    style={{ width: 84, height: 64, objectFit: "cover", borderRadius: 8, cursor: "zoom-in", border: i === 0 ? "2px solid #0f172a" : "2px solid transparent", display: "block" }} />
-                  {i === 0 && (
-                    <span style={{ position: "absolute", left: 4, top: 4, background: "#0f172a", color: "#fff", borderRadius: 5, padding: "1px 5px", fontSize: 10, fontWeight: 700 }}>COVER</span>
-                  )}
-                  <div style={{ position: "absolute", right: 3, top: 3, display: "flex", gap: 3 }}>
-                    {i !== 0 && (
-                      <button onClick={() => makeCover(url)} title="Gør til cover"
-                        style={{ background: "rgba(15,23,42,.8)", color: "#fff", border: "none", borderRadius: 5, width: 20, height: 20, display: "grid", placeItems: "center", cursor: "pointer", fontSize: 11 }}>★</button>
-                    )}
-                    <button onClick={() => removeImage(url)} title="Fjern"
-                      style={{ background: "rgba(185,28,28,.9)", color: "#fff", border: "none", borderRadius: 5, width: 20, height: 20, display: "grid", placeItems: "center", cursor: "pointer" }}>
-                      <X size={12} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        {imgError && <div style={{ background: "#fcebea", color: "#b91c1c", padding: "8px 14px", fontSize: 13 }}>{imgError}</div>}
         <div style={{ padding: 24 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
             <div>
@@ -360,6 +327,30 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove }) {
             <Field label="Placering" value={car.location || "—"} />
             <Field label="Årgang" value={car.year} />
           </div>
+          <Section title={`Billeder (${images.length}/${MAX_IMAGES})`} icon={Camera}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+              {images.map((url, i) => (
+                <button key={url} onClick={() => setViewerIndex(i)}
+                  style={{ position: "relative", aspectRatio: "1 / 1", padding: 0, border: i === 0 ? "2px solid #0f172a" : "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden", cursor: "pointer", background: "#eef2f7" }}>
+                  <img src={url} alt={`Billede ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                  {i === 0 && (
+                    <span style={{ position: "absolute", left: 5, top: 5, background: "#0f172a", color: "#fff", borderRadius: 5, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>COVER</span>
+                  )}
+                </button>
+              ))}
+              {images.length < MAX_IMAGES && (
+                <label style={{ aspectRatio: "1 / 1", display: "grid", placeItems: "center", gap: 6, border: "2px dashed #cbd5e1", borderRadius: 10, cursor: uploading ? "default" : "pointer", color: "#64748b", background: "#f8fafc" }}>
+                  {uploading ? <Loader2 size={22} className="spin" /> : <ImagePlus size={22} />}
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>{uploading ? "Uploader…" : "Tilføj"}</span>
+                  <input type="file" accept="image/*" multiple onChange={handleImages} disabled={uploading} style={{ display: "none" }} />
+                </label>
+              )}
+            </div>
+            {imgError && <div style={{ color: "#b91c1c", fontSize: 13, marginTop: 10 }}>{imgError}</div>}
+            {images.length === 0 && !imgError && (
+              <div style={{ fontSize: 13, color: "#94a3b8", marginTop: 10 }}>Ingen billeder endnu. Klik “Tilføj” for at uploade (op til {MAX_IMAGES}).</div>
+            )}
+          </Section>
           <Section title="Skift status" icon={Wrench}>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
               {STATUS_ORDER.map((s) => {
@@ -402,13 +393,51 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove }) {
           </button>
         </div>
       </div>
-      {lightbox && (
-        <div onClick={() => setLightbox(null)} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.88)", display: "grid", placeItems: "center", padding: 24, zIndex: 60, cursor: "zoom-out" }}>
-          <img src={lightbox} alt="" style={{ maxWidth: "100%", maxHeight: "100%", borderRadius: 10, boxShadow: "0 12px 40px rgba(0,0,0,.4)" }} />
-          <button onClick={() => setLightbox(null)} style={{ position: "fixed", top: 20, right: 20, background: "rgba(255,255,255,.15)", color: "#fff", border: "none", borderRadius: 9, width: 40, height: 40, display: "grid", placeItems: "center", cursor: "pointer" }}>
-            <X size={22} />
-          </button>
-        </div>
+      {viewerIndex !== null && images[viewerIndex] && (
+        <>
+          <div onClick={() => setViewerIndex(null)} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.5)", zIndex: 60 }} />
+          <div className="sidebar" style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: "min(440px, 92vw)", background: "#fff", zIndex: 61, boxShadow: "-8px 0 30px rgba(15,23,42,.2)", display: "flex", flexDirection: "column" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px", borderBottom: "1px solid #eef2f7" }}>
+              <div style={{ fontSize: 14, fontWeight: 700 }}>Billede {viewerIndex + 1} af {images.length}</div>
+              <button onClick={() => setViewerIndex(null)} style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", display: "grid", placeItems: "center" }}><X size={20} /></button>
+            </div>
+            <div style={{ flex: 1, background: "#0f172a", display: "grid", placeItems: "center", position: "relative", overflow: "hidden" }}>
+              <img src={images[viewerIndex]} alt="" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", display: "block" }} />
+              {images.length > 1 && (
+                <>
+                  <button onClick={() => setViewerIndex((viewerIndex - 1 + images.length) % images.length)}
+                    style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,.18)", color: "#fff", border: "none", borderRadius: 9, width: 38, height: 38, display: "grid", placeItems: "center", cursor: "pointer" }}>
+                    <ChevronLeft size={22} />
+                  </button>
+                  <button onClick={() => setViewerIndex((viewerIndex + 1) % images.length)}
+                    style={{ position: "absolute", right: 10, top: "50%", background: "rgba(255,255,255,.18)", color: "#fff", border: "none", borderRadius: 9, width: 38, height: 38, display: "grid", placeItems: "center", cursor: "pointer", transform: "translateY(-50%) rotate(180deg)" }}>
+                    <ChevronLeft size={22} />
+                  </button>
+                </>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: 8, padding: 14, borderTop: "1px solid #eef2f7" }}>
+              {viewerIndex !== 0 && (
+                <button onClick={() => makeCover(images[viewerIndex])}
+                  style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "#0f172a", color: "#fff", border: "none", borderRadius: 9, padding: "10px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                  ★ Gør til cover
+                </button>
+              )}
+              <button onClick={() => removeImage(images[viewerIndex])}
+                style={{ flex: viewerIndex === 0 ? 1 : "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "#fff", color: "#dc2626", border: "1px solid #fca5a5", borderRadius: 9, padding: "10px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                <Trash2 size={15} /> Fjern
+              </button>
+            </div>
+            {images.length > 1 && (
+              <div style={{ display: "flex", gap: 6, padding: "0 14px 16px", overflowX: "auto" }}>
+                {images.map((url, i) => (
+                  <img key={url} src={url} alt="" onClick={() => setViewerIndex(i)}
+                    style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 7, cursor: "pointer", flex: "0 0 auto", border: i === viewerIndex ? "2px solid #0f172a" : "2px solid transparent" }} />
+                ))}
+              </div>
+            )}
+          </div>
+        </>
       )}
     </div>
   );
