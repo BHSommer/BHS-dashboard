@@ -1,9 +1,22 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Car, Wrench, PaintBucket, CheckCircle2, Clock, AlertTriangle,
-  Plus, X, Search, Trash2, ChevronLeft, Tag, Gauge, FileText, RefreshCw
+  Plus, X, Search, Trash2, ChevronLeft, Tag, Gauge, FileText, RefreshCw,
+  ImagePlus, Loader2, Camera
 } from "lucide-react";
 import { supabase } from "./supabase.js";
+
+// ---- Billede-upload til Supabase Storage -----------------------------------
+async function uploadCarImage(carId, file) {
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const path = `${carId}/${Date.now()}.${ext}`;
+  const { error: upErr } = await supabase.storage
+    .from("car-images")
+    .upload(path, file, { upsert: true, cacheControl: "3600" });
+  if (upErr) throw upErr;
+  const { data } = supabase.storage.from("car-images").getPublicUrl(path);
+  return data.publicUrl;
+}
 
 // ---- Status system ---------------------------------------------------------
 const STATUSES = {
@@ -119,6 +132,8 @@ function Shell({ children }) {
         button { font-family: inherit; cursor: pointer; }
         input, select, textarea { font-family: inherit; }
         .fade { animation: pop .25s ease; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spin { animation: spin 1s linear infinite; }
       `}</style>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "28px 20px 60px" }}>{children}</div>
     </div>
@@ -203,6 +218,15 @@ function CarCard({ car, onClick }) {
       onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 8px 22px rgba(15,23,42,.10)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
       onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.transform = "none"; }}>
       <div style={{ height: 5, background: s.color }} />
+      {car.image_url ? (
+        <div style={{ height: 150, overflow: "hidden", background: "#eef2f7" }}>
+          <img src={car.image_url} alt={`${car.make} ${car.model}`} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        </div>
+      ) : (
+        <div style={{ height: 150, background: "#eef2f7", display: "grid", placeItems: "center", color: "#cbd5e1" }}>
+          <Camera size={30} strokeWidth={1.5} />
+        </div>
+      )}
       <div style={{ padding: 16 }}>
         <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.01em" }}>{car.make} {car.model}</div>
         <div style={{ fontSize: 13, color: "#64748b", marginTop: 2 }}>{car.year} · {car.plate}</div>
@@ -221,9 +245,33 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove }) {
   const [note, setNote] = useState("");
   const [notesDraft, setNotesDraft] = useState(car.notes || "");
   const [pendingStatus, setPendingStatus] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [imgError, setImgError] = useState(null);
   useEffect(() => { setNotesDraft(car.notes || ""); }, [car.id]);
 
   const applyStatus = (s) => { onSetStatus(car, s, note.trim() || null); setNote(""); setPendingStatus(null); };
+
+  const handleImage = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // tillad upload af samme fil igen
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { setImgError("Filen er ikke et billede."); return; }
+    if (file.size > 8 * 1024 * 1024) { setImgError("Billedet er for stort (max 8 MB)."); return; }
+    setImgError(null); setUploading(true);
+    try {
+      const url = await uploadCarImage(car.id, file);
+      await onUpdate(car.id, { image_url: url });
+    } catch (err) {
+      setImgError(err.message || "Upload fejlede.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeImage = async () => {
+    if (!confirm("Fjern billedet?")) return;
+    await onUpdate(car.id, { image_url: null });
+  };
 
   return (
     <div className="fade">
@@ -232,6 +280,30 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove }) {
       </button>
       <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 14, overflow: "hidden" }}>
         <div style={{ height: 6, background: STATUSES[car.status].color }} />
+        {/* Billede */}
+        <div style={{ position: "relative", height: 280, background: "#eef2f7" }}>
+          {car.image_url ? (
+            <img src={car.image_url} alt={`${car.make} ${car.model}`} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+          ) : (
+            <div style={{ height: "100%", display: "grid", placeItems: "center", color: "#cbd5e1", gap: 8 }}>
+              <Camera size={44} strokeWidth={1.5} />
+              <span style={{ fontSize: 13, color: "#94a3b8" }}>Intet billede endnu</span>
+            </div>
+          )}
+          <div style={{ position: "absolute", right: 12, bottom: 12, display: "flex", gap: 8 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(15,23,42,.85)", color: "#fff", borderRadius: 9, padding: "8px 13px", fontSize: 13, fontWeight: 600, cursor: uploading ? "default" : "pointer", backdropFilter: "blur(4px)" }}>
+              {uploading ? <Loader2 size={15} className="spin" /> : <ImagePlus size={15} />}
+              {uploading ? "Uploader…" : car.image_url ? "Skift billede" : "Tilføj billede"}
+              <input type="file" accept="image/*" onChange={handleImage} disabled={uploading} style={{ display: "none" }} />
+            </label>
+            {car.image_url && !uploading && (
+              <button onClick={removeImage} style={{ display: "flex", alignItems: "center", background: "rgba(15,23,42,.85)", color: "#fff", border: "none", borderRadius: 9, padding: "8px 11px", cursor: "pointer", backdropFilter: "blur(4px)" }}>
+                <Trash2 size={15} />
+              </button>
+            )}
+          </div>
+        </div>
+        {imgError && <div style={{ background: "#fcebea", color: "#b91c1c", padding: "8px 14px", fontSize: 13 }}>{imgError}</div>}
         <div style={{ padding: 24 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
             <div>
