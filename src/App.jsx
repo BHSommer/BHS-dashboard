@@ -494,11 +494,20 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 4
               </button>
             </div>
             {images.length > 1 && (
-              <div style={{ display: "flex", gap: 6, padding: "0 14px 16px", overflowX: "auto" }}>
-                {images.map((url, i) => (
-                  <img key={url} src={url} alt="" onClick={() => setViewerIndex(i)}
-                    style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 7, cursor: "pointer", flex: "0 0 auto", border: i === viewerIndex ? "2px solid #0f172a" : "2px solid transparent" }} />
-                ))}
+              <div style={{ display: "flex", gap: 8, padding: "0 14px 16px", overflowX: "auto" }}>
+                {images.map((url, i) => {
+                  const active = i === viewerIndex;
+                  return (
+                    <div key={url} onClick={() => setViewerIndex(i)}
+                      style={{ position: "relative", flex: "0 0 auto", cursor: "pointer", borderRadius: 8, padding: 2, background: active ? "#2563eb" : "transparent" }}>
+                      <img src={url} alt=""
+                        style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 6, display: "block", opacity: active ? 1 : 0.5, transition: "opacity .15s" }} />
+                      {active && (
+                        <span style={{ position: "absolute", inset: 2, borderRadius: 6, boxShadow: "inset 0 0 0 2px #fff", pointerEvents: "none" }} />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
