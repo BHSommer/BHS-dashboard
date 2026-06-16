@@ -311,6 +311,7 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 4
 
   const makeCover = async (url) => {
     await onUpdate(car.id, { images: [url, ...images.filter((u) => u !== url)], image_url: null });
+    setViewerIndex(0);
   };
 
   return (
