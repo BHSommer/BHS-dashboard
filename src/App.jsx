@@ -49,6 +49,8 @@ export default function App() {
   const [filter, setFilter] = useState("all");
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState(null);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const SIDEBAR_W = 460;
 
   // Initial load + realtime subscription so every device stays in sync
   useEffect(() => {
@@ -105,14 +107,15 @@ export default function App() {
   });
 
   return (
-    <Shell>
+    <Shell pushBy={viewerOpen ? SIDEBAR_W : 0}>
       {error && (
         <div style={{ background: "#fcebea", color: "#b91c1c", padding: "10px 14px", borderRadius: 9, marginBottom: 16, fontSize: 13 }}>
           Fejl: {error}. Tjek din Supabase-opsætning i SETUP.md.
         </div>
       )}
       {selectedCar ? (
-        <Detail car={selectedCar} onBack={() => setSelected(null)} onSetStatus={setStatus} onUpdate={updateCar} onRemove={remove} />
+        <Detail car={selectedCar} onBack={() => setSelected(null)} onSetStatus={setStatus} onUpdate={updateCar} onRemove={remove}
+          sidebarWidth={SIDEBAR_W} onViewerChange={setViewerOpen} />
       ) : (
         <>
           <Header total={cars.length} counts={counts} />
@@ -133,7 +136,7 @@ export default function App() {
   );
 }
 
-function Shell({ children }) {
+function Shell({ children, pushBy = 0 }) {
   return (
     <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: "#f1f4f8", minHeight: "100vh", color: "#0f172a" }}>
       <style>{`
@@ -147,7 +150,9 @@ function Shell({ children }) {
         @keyframes slideIn { from { transform: translateX(100%); } to { transform: none; } }
         .sidebar { animation: slideIn .22s ease; }
       `}</style>
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "28px 20px 60px" }}>{children}</div>
+      <div style={{ paddingRight: pushBy, transition: "padding-right .22s ease" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "28px 20px 60px" }}>{children}</div>
+      </div>
     </div>
   );
 }
@@ -261,7 +266,7 @@ function CarCard({ car, onClick }) {
   );
 }
 
-function Detail({ car, onBack, onSetStatus, onUpdate, onRemove }) {
+function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 460, onViewerChange }) {
   const [note, setNote] = useState("");
   const [notesDraft, setNotesDraft] = useState(car.notes || "");
   const [pendingStatus, setPendingStatus] = useState(null);
@@ -269,6 +274,8 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove }) {
   const [imgError, setImgError] = useState(null);
   const [viewerIndex, setViewerIndex] = useState(null);
   useEffect(() => { setNotesDraft(car.notes || ""); }, [car.id]);
+  useEffect(() => { onViewerChange?.(viewerIndex !== null); }, [viewerIndex, onViewerChange]);
+  useEffect(() => { setViewerIndex(null); }, [car.id]);
 
   const images = car.images?.length ? car.images : (car.image_url ? [car.image_url] : []);
   const MAX_IMAGES = 10;
@@ -394,9 +401,7 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove }) {
         </div>
       </div>
       {viewerIndex !== null && images[viewerIndex] && (
-        <>
-          <div onClick={() => setViewerIndex(null)} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.5)", zIndex: 60 }} />
-          <div className="sidebar" style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: "min(440px, 92vw)", background: "#fff", zIndex: 61, boxShadow: "-8px 0 30px rgba(15,23,42,.2)", display: "flex", flexDirection: "column" }}>
+        <div className="sidebar" style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: sidebarWidth, maxWidth: "92vw", background: "#fff", zIndex: 61, boxShadow: "-8px 0 30px rgba(15,23,42,.15)", display: "flex", flexDirection: "column", borderLeft: "1px solid #e2e8f0" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px", borderBottom: "1px solid #eef2f7" }}>
               <div style={{ fontSize: 14, fontWeight: 700 }}>Billede {viewerIndex + 1} af {images.length}</div>
               <button onClick={() => setViewerIndex(null)} style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", display: "grid", placeItems: "center" }}><X size={20} /></button>
@@ -437,7 +442,6 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove }) {
               </div>
             )}
           </div>
-        </>
       )}
     </div>
   );
