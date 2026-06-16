@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Car, Wrench, PaintBucket, CheckCircle2, Clock, AlertTriangle,
   Plus, X, Search, Trash2, ChevronLeft, Tag, Gauge, FileText, RefreshCw,
-  ImagePlus, Loader2, Camera
+  ImagePlus, Loader2, Camera, CheckSquare, Check
 } from "lucide-react";
 import { supabase } from "./supabase.js";
 
@@ -273,9 +273,11 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 4
   const [uploading, setUploading] = useState(false);
   const [imgError, setImgError] = useState(null);
   const [viewerIndex, setViewerIndex] = useState(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedImgs, setSelectedImgs] = useState([]);
   useEffect(() => { setNotesDraft(car.notes || ""); }, [car.id]);
   useEffect(() => { onViewerChange?.(viewerIndex !== null); }, [viewerIndex, onViewerChange]);
-  useEffect(() => { setViewerIndex(null); }, [car.id]);
+  useEffect(() => { setViewerIndex(null); setSelectMode(false); setSelectedImgs([]); }, [car.id]);
 
   const images = car.images?.length ? car.images : (car.image_url ? [car.image_url] : []);
   const MAX_IMAGES = 10;
@@ -304,14 +306,33 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 4
 
   const removeImage = async (url) => {
     if (!confirm("Fjern dette billede?")) return;
+    const idx = images.indexOf(url);
     const next = images.filter((u) => u !== url);
     await onUpdate(car.id, { images: next, image_url: null });
-    setViewerIndex(null);
+    if (next.length === 0) {
+      setViewerIndex(null);
+    } else {
+      setViewerIndex(Math.min(idx, next.length - 1));
+    }
   };
 
   const makeCover = async (url) => {
     await onUpdate(car.id, { images: [url, ...images.filter((u) => u !== url)], image_url: null });
     setViewerIndex(0);
+  };
+
+  const toggleSelect = (url) => {
+    setSelectedImgs((prev) => prev.includes(url) ? prev.filter((u) => u !== url) : [...prev, url]);
+  };
+
+  const exitSelect = () => { setSelectMode(false); setSelectedImgs([]); };
+
+  const deleteSelected = async () => {
+    if (selectedImgs.length === 0) return;
+    if (!confirm(`Fjern ${selectedImgs.length} ${selectedImgs.length === 1 ? "billede" : "billeder"}?`)) return;
+    const next = images.filter((u) => !selectedImgs.includes(u));
+    await onUpdate(car.id, { images: next, image_url: null });
+    exitSelect();
   };
 
   return (
@@ -336,17 +357,55 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 4
             <Field label="Årgang" value={car.year} />
           </div>
           <Section title={`Billeder (${images.length}/${MAX_IMAGES})`} icon={Camera}>
+            {images.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, gap: 10, flexWrap: "wrap" }}>
+                {selectMode ? (
+                  <>
+                    <div style={{ fontSize: 13, color: "#475569", fontWeight: 600 }}>
+                      {selectedImgs.length} valgt
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={() => setSelectedImgs(selectedImgs.length === images.length ? [] : [...images])}
+                        style={{ background: "#fff", border: "1px solid #d8dee8", color: "#475569", borderRadius: 8, padding: "6px 12px", fontSize: 13, fontWeight: 600 }}>
+                        {selectedImgs.length === images.length ? "Fravælg alle" : "Vælg alle"}
+                      </button>
+                      <button onClick={deleteSelected} disabled={selectedImgs.length === 0}
+                        style={{ display: "flex", alignItems: "center", gap: 6, background: selectedImgs.length ? "#dc2626" : "#fca5a5", color: "#fff", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 13, fontWeight: 600, cursor: selectedImgs.length ? "pointer" : "default" }}>
+                        <Trash2 size={14} /> Slet valgte
+                      </button>
+                      <button onClick={exitSelect}
+                        style={{ background: "#fff", border: "1px solid #d8dee8", color: "#475569", borderRadius: 8, padding: "6px 12px", fontSize: 13, fontWeight: 600 }}>
+                        Annullér
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <button onClick={() => setSelectMode(true)}
+                    style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, background: "#fff", border: "1px solid #d8dee8", color: "#475569", borderRadius: 8, padding: "6px 12px", fontSize: 13, fontWeight: 600 }}>
+                    <CheckSquare size={14} /> Vælg flere
+                  </button>
+                )}
+              </div>
+            )}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
-              {images.map((url, i) => (
-                <button key={url} onClick={() => setViewerIndex(i)}
-                  style={{ position: "relative", aspectRatio: "1 / 1", padding: 0, border: i === 0 ? "2px solid #0f172a" : "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden", cursor: "pointer", background: "#eef2f7" }}>
-                  <img src={url} alt={`Billede ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                  {i === 0 && (
-                    <span style={{ position: "absolute", left: 5, top: 5, background: "#0f172a", color: "#fff", borderRadius: 5, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>COVER</span>
-                  )}
-                </button>
-              ))}
-              {images.length < MAX_IMAGES && (
+              {images.map((url, i) => {
+                const checked = selectedImgs.includes(url);
+                return (
+                  <button key={url} onClick={() => selectMode ? toggleSelect(url) : setViewerIndex(i)}
+                    style={{ position: "relative", aspectRatio: "1 / 1", padding: 0, border: checked ? "2px solid #2563eb" : i === 0 ? "2px solid #0f172a" : "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden", cursor: "pointer", background: "#eef2f7" }}>
+                    <img src={url} alt={`Billede ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: selectMode && !checked ? 0.65 : 1 }} />
+                    {i === 0 && (
+                      <span style={{ position: "absolute", left: 5, top: 5, background: "#0f172a", color: "#fff", borderRadius: 5, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>COVER</span>
+                    )}
+                    {selectMode && (
+                      <span style={{ position: "absolute", right: 6, top: 6, width: 24, height: 24, borderRadius: 6, background: checked ? "#2563eb" : "rgba(255,255,255,.9)", border: checked ? "none" : "1px solid #cbd5e1", display: "grid", placeItems: "center" }}>
+                        {checked && <Check size={16} color="#fff" />}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+              {!selectMode && images.length < MAX_IMAGES && (
                 <label style={{ aspectRatio: "1 / 1", display: "grid", placeItems: "center", gap: 6, border: "2px dashed #cbd5e1", borderRadius: 10, cursor: uploading ? "default" : "pointer", color: "#64748b", background: "#f8fafc" }}>
                   {uploading ? <Loader2 size={22} className="spin" /> : <ImagePlus size={22} />}
                   <span style={{ fontSize: 12, fontWeight: 600 }}>{uploading ? "Uploader…" : "Tilføj"}</span>
