@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Car, Wrench, PaintBucket, CheckCircle2, Clock, AlertTriangle,
   Plus, X, Search, Trash2, ChevronLeft, Tag, Gauge, FileText, RefreshCw,
-  ImagePlus, Loader2, Camera, CheckSquare, Check
+  ImagePlus, Loader2, Camera, CheckSquare, Check, Pencil
 } from "lucide-react";
 import { supabase } from "./supabase.js";
 
@@ -275,9 +275,35 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 4
   const [viewerIndex, setViewerIndex] = useState(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedImgs, setSelectedImgs] = useState([]);
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState(null);
   useEffect(() => { setNotesDraft(car.notes || ""); }, [car.id]);
   useEffect(() => { onViewerChange?.(viewerIndex !== null); }, [viewerIndex, onViewerChange]);
-  useEffect(() => { setViewerIndex(null); setSelectMode(false); setSelectedImgs([]); }, [car.id]);
+  useEffect(() => { setViewerIndex(null); setSelectMode(false); setSelectedImgs([]); setEditing(false); }, [car.id]);
+
+  const startEdit = () => {
+    setForm({
+      make: car.make || "", model: car.model || "", year: car.year ?? "",
+      plate: car.plate || "", vin: car.vin || "", km: car.km ?? "",
+      price: car.price ?? "", location: car.location || "",
+    });
+    setEditing(true);
+  };
+
+  const saveEdit = async () => {
+    if (!form.make || !form.model) { alert("Mærke og model skal udfyldes."); return; }
+    await onUpdate(car.id, {
+      make: form.make.trim(),
+      model: form.model.trim(),
+      year: form.year === "" ? null : +form.year,
+      plate: form.plate.trim(),
+      vin: form.vin.trim(),
+      km: form.km === "" ? 0 : +form.km,
+      price: form.price === "" ? null : +form.price,
+      location: form.location.trim(),
+    });
+    setEditing(false);
+  };
 
   const images = car.images?.length ? car.images : (car.image_url ? [car.image_url] : []);
   const MAX_IMAGES = 10;
@@ -344,18 +370,65 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 4
         <div style={{ height: 6, background: STATUSES[car.status].color }} />
         <div style={{ padding: 24 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
-            <div>
-              <h2 style={{ margin: 0, fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em" }}>{car.make} {car.model}</h2>
-              <div style={{ color: "#64748b", fontSize: 14, marginTop: 4 }}>{car.year} · {car.plate} · {car.vin || "VIN ukendt"}</div>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              {editing ? (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <EditField label="Mærke" value={form.make} onChange={(v) => setForm({ ...form, make: v })} width={140} />
+                  <EditField label="Model" value={form.model} onChange={(v) => setForm({ ...form, model: v })} width={140} />
+                </div>
+              ) : (
+                <>
+                  <h2 style={{ margin: 0, fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em" }}>{car.make} {car.model}</h2>
+                  <div style={{ color: "#64748b", fontSize: 14, marginTop: 4 }}>
+                    {car.year} ·{" "}
+                    {car.plate ? (
+                      <a href={`https://www.tjekbil.dk/nummerplade/${car.plate.replace(/\s+/g, "").toUpperCase()}/overblik`}
+                        target="_blank" rel="noopener noreferrer"
+                        style={{ color: "#2563eb", textDecoration: "none", fontWeight: 600 }}
+                        title="Slå op på tjekbil.dk">
+                        {car.plate}
+                      </a>
+                    ) : "ingen nummerplade"}
+                    {" "}· {car.vin || "VIN ukendt"}
+                  </div>
+                </>
+              )}
             </div>
-            <StatusPill status={car.status} />
+            {editing ? (
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={saveEdit} style={{ display: "flex", alignItems: "center", gap: 6, background: "#0f172a", color: "#fff", border: "none", borderRadius: 9, padding: "8px 14px", fontSize: 13, fontWeight: 600 }}>
+                  <Check size={15} /> Gem
+                </button>
+                <button onClick={() => setEditing(false)} style={{ background: "#fff", border: "1px solid #d8dee8", color: "#475569", borderRadius: 9, padding: "8px 14px", fontSize: 13, fontWeight: 600 }}>
+                  Annullér
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <StatusPill status={car.status} />
+                <button onClick={startEdit} title="Redigér oplysninger" style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", border: "1px solid #d8dee8", color: "#475569", borderRadius: 9, padding: "8px 12px", fontSize: 13, fontWeight: 600 }}>
+                  <Pencil size={14} /> Redigér
+                </button>
+              </div>
+            )}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 1, background: "#eef2f7", border: "1px solid #eef2f7", borderRadius: 10, marginTop: 20, overflow: "hidden" }}>
-            <Field label="Kilometer" value={`${new Intl.NumberFormat("da-DK").format(car.km || 0)} km`} />
-            <Field label="Pris" value={kr(car.price)} />
-            <Field label="Placering" value={car.location || "—"} />
-            <Field label="Årgang" value={car.year} />
-          </div>
+          {editing ? (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginTop: 20 }}>
+              <EditField label="Årgang" value={form.year} onChange={(v) => setForm({ ...form, year: v })} type="number" />
+              <EditField label="Nummerplade" value={form.plate} onChange={(v) => setForm({ ...form, plate: v })} />
+              <EditField label="VIN" value={form.vin} onChange={(v) => setForm({ ...form, vin: v })} />
+              <EditField label="Kilometer" value={form.km} onChange={(v) => setForm({ ...form, km: v })} type="number" />
+              <EditField label="Pris (kr.)" value={form.price} onChange={(v) => setForm({ ...form, price: v })} type="number" />
+              <EditField label="Placering" value={form.location} onChange={(v) => setForm({ ...form, location: v })} />
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 1, background: "#eef2f7", border: "1px solid #eef2f7", borderRadius: 10, marginTop: 20, overflow: "hidden" }}>
+              <Field label="Kilometer" value={`${new Intl.NumberFormat("da-DK").format(car.km || 0)} km`} />
+              <Field label="Pris" value={kr(car.price)} />
+              <Field label="Placering" value={car.location || "—"} />
+              <Field label="Årgang" value={car.year} />
+            </div>
+          )}
           <Section title={`Billeder (${images.length}/${MAX_IMAGES})`} icon={Camera}>
             {images.length > 0 && (
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, gap: 10, flexWrap: "wrap" }}>
@@ -521,6 +594,15 @@ function Field({ label, value }) {
     <div style={{ background: "#fff", padding: "12px 14px" }}>
       <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 3 }}>{label}</div>
       <div style={{ fontSize: 15, fontWeight: 600 }}>{value}</div>
+    </div>
+  );
+}
+function EditField({ label, value, onChange, type = "text", width }) {
+  return (
+    <div style={{ width }}>
+      <div style={{ fontSize: 12, color: "#64748b", fontWeight: 500, marginBottom: 4 }}>{label}</div>
+      <input type={type} value={value} onChange={(e) => onChange(e.target.value)}
+        style={{ width: "100%", padding: "9px 11px", border: "1px solid #d8dee8", borderRadius: 8, fontSize: 14, outline: "none" }} />
     </div>
   );
 }
