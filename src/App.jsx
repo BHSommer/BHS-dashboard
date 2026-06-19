@@ -42,6 +42,17 @@ const STATUSES = {
 const STATUS_ORDER = ["incoming", "service", "body", "paint", "attention", "available", "listed", "sold"];
 
 const kr = (n) => n == null ? "—" : new Intl.NumberFormat("da-DK").format(n) + " kr.";
+const profit = (car) => (car.price != null && car.purchase_price != null) ? car.price - car.purchase_price : null;
+const profitText = (car) => {
+  const p = profit(car);
+  if (p == null) return "—";
+  return (p >= 0 ? "+" : "") + new Intl.NumberFormat("da-DK").format(p) + " kr.";
+};
+const profitColor = (car) => {
+  const p = profit(car);
+  if (p == null) return "#0f172a";
+  return p >= 0 ? "#1f9d55" : "#dc2626";
+};
 const today = () => new Date().toISOString().slice(0, 10);
 
 export default function App() {
@@ -287,7 +298,7 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 4
     setForm({
       make: car.make || "", model: car.model || "", year: car.year ?? "",
       plate: car.plate || "", vin: car.vin || "", km: car.km ?? "",
-      price: car.price ?? "", location: car.location || "",
+      price: car.price ?? "", purchase_price: car.purchase_price ?? "", location: car.location || "",
     });
     setEditing(true);
   };
@@ -302,6 +313,7 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 4
       vin: form.vin.trim(),
       km: form.km === "" ? 0 : +form.km,
       price: form.price === "" ? null : +form.price,
+      purchase_price: form.purchase_price === "" ? null : +form.purchase_price,
       location: form.location.trim(),
     });
     setEditing(false);
@@ -420,13 +432,16 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 4
               <EditField label="Nummerplade" value={form.plate} onChange={(v) => setForm({ ...form, plate: v })} />
               <EditField label="VIN" value={form.vin} onChange={(v) => setForm({ ...form, vin: v })} />
               <EditField label="Kilometer" value={form.km} onChange={(v) => setForm({ ...form, km: v })} type="number" />
-              <EditField label="Pris (kr.)" value={form.price} onChange={(v) => setForm({ ...form, price: v })} type="number" />
+              <EditField label="Købspris (kr.)" value={form.purchase_price} onChange={(v) => setForm({ ...form, purchase_price: v })} type="number" />
+              <EditField label="Salgspris (kr.)" value={form.price} onChange={(v) => setForm({ ...form, price: v })} type="number" />
               <EditField label="Placering" value={form.location} onChange={(v) => setForm({ ...form, location: v })} />
             </div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 1, background: "#eef2f7", border: "1px solid #eef2f7", borderRadius: 10, marginTop: 20, overflow: "hidden" }}>
               <Field label="Kilometer" value={`${new Intl.NumberFormat("da-DK").format(car.km || 0)} km`} />
-              <Field label="Pris" value={kr(car.price)} />
+              <Field label="Købspris" value={kr(car.purchase_price)} />
+              <Field label="Salgspris" value={kr(car.price)} />
+              <Field label="Fortjeneste" value={profitText(car)} valueColor={profitColor(car)} />
               <Field label="Placering" value={car.location || "—"} />
               <Field label="Årgang" value={car.year} />
             </div>
@@ -591,11 +606,11 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 4
   );
 }
 
-function Field({ label, value }) {
+function Field({ label, value, valueColor }) {
   return (
     <div style={{ background: "#fff", padding: "12px 14px" }}>
       <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 3 }}>{label}</div>
-      <div style={{ fontSize: 15, fontWeight: 600 }}>{value}</div>
+      <div style={{ fontSize: 15, fontWeight: 600, color: valueColor || "#0f172a" }}>{value}</div>
     </div>
   );
 }
@@ -621,11 +636,11 @@ function Section({ title, icon: Icon, children }) {
 }
 
 function AddModal({ onClose, onAdd }) {
-  const [f, setF] = useState({ make: "", model: "", year: "", plate: "", vin: "", km: "", price: "", status: "service", location: "", notes: "" });
+  const [f, setF] = useState({ make: "", model: "", year: "", plate: "", vin: "", km: "", purchase_price: "", price: "", status: "service", location: "", notes: "" });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const submit = () => {
     if (!f.make || !f.model) return alert("Mærke og model skal udfyldes.");
-    onAdd({ ...f, year: +f.year || new Date().getFullYear(), km: +f.km || 0, price: +f.price || null });
+    onAdd({ ...f, year: +f.year || new Date().getFullYear(), km: +f.km || 0, price: +f.price || null, purchase_price: +f.purchase_price || null });
   };
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.45)", display: "grid", placeItems: "center", padding: 20, zIndex: 50 }}>
@@ -641,7 +656,8 @@ function AddModal({ onClose, onAdd }) {
           <Input label="Nummerplade" v={f.plate} on={set("plate")} />
           <Input label="VIN" v={f.vin} on={set("vin")} />
           <Input label="Kilometer" v={f.km} on={set("km")} type="number" />
-          <Input label="Pris (kr.)" v={f.price} on={set("price")} type="number" />
+          <Input label="Købspris (kr.)" v={f.purchase_price} on={set("purchase_price")} type="number" />
+          <Input label="Salgspris (kr.)" v={f.price} on={set("price")} type="number" />
           <Input label="Placering" v={f.location} on={set("location")} />
           <div style={{ gridColumn: "1 / -1" }}>
             <Label>Status</Label>
