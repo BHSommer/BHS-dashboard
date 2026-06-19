@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Car, Wrench, PaintBucket, CheckCircle2, Clock, AlertTriangle,
   Plus, X, Search, Trash2, ChevronLeft, Tag, Gauge, FileText, RefreshCw,
-  ImagePlus, Loader2, Camera, CheckSquare, Check, Pencil
+  ImagePlus, Loader2, Camera, CheckSquare, Check, Pencil, Truck
 } from "lucide-react";
 import { supabase } from "./supabase.js";
 
@@ -31,13 +31,15 @@ async function uploadCarImages(carId, files) {
 // ---- Status system ---------------------------------------------------------
 const STATUSES = {
   available: { label: "Klar til salg", color: "#1f9d55", bg: "#e8f6ee", icon: CheckCircle2 },
+  listed:    { label: "Sat til salg",  color: "#0d9488", bg: "#e3f5f2", icon: Tag },
+  incoming:  { label: "På vej",        color: "#b45309", bg: "#fdf3e3", icon: Truck },
   body:      { label: "Pladearbejde",  color: "#c2410c", bg: "#fdeee4", icon: Wrench },
   paint:     { label: "Lakering",      color: "#6d28d9", bg: "#f0eafc", icon: PaintBucket },
   service:   { label: "Service / klargøring", color: "#0369a1", bg: "#e6f2fb", icon: Gauge },
   sold:      { label: "Solgt",         color: "#475569", bg: "#eef1f5", icon: Tag },
   attention: { label: "Skal tjekkes",  color: "#b91c1c", bg: "#fcebea", icon: AlertTriangle },
 };
-const STATUS_ORDER = ["available", "body", "paint", "service", "attention", "sold"];
+const STATUS_ORDER = ["incoming", "service", "body", "paint", "attention", "available", "listed", "sold"];
 
 const kr = (n) => n == null ? "—" : new Intl.NumberFormat("da-DK").format(n) + " kr.";
 const today = () => new Date().toISOString().slice(0, 10);
