@@ -78,7 +78,7 @@ const CATEGORIES = {
   engros:   { label: "Engros",             color: "#eab308" },
   mainline: { label: "Mainline",           color: "#2563eb" },
   private:  { label: "Private collection", color: "#7c3aed" },
-  dookie:   { label: "Dookie",             color: "#16a34a" },
+  dookie:   { label: "Dookie",             color: "#92400e" },
 };
 const CATEGORY_ORDER = ["engros", "mainline", "private", "dookie"];
 
