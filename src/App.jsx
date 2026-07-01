@@ -67,10 +67,11 @@ const STATUSES = {
   body:      { label: "Pladearbejde",  color: "#c2410c", bg: "#fdeee4", icon: Wrench },
   paint:     { label: "Lakering",      color: "#6d28d9", bg: "#f0eafc", icon: PaintBucket },
   service:   { label: "Service / klargøring", color: "#0369a1", bg: "#e6f2fb", icon: Gauge },
-  sold:      { label: "Solgt",         color: "#475569", bg: "#eef1f5", icon: Tag },
+  await_order: { label: "Afventer bestilling dele",  color: "#a16207", bg: "#fef7e0", icon: Clock },
+  await_parts: { label: "Afventer modtagelse dele", color: "#9333ea", bg: "#f3e8fd", icon: Truck },
   attention: { label: "Skal tjekkes",  color: "#b91c1c", bg: "#fcebea", icon: AlertTriangle },
 };
-const STATUS_ORDER = ["incoming", "service", "body", "paint", "attention", "available", "listed", "sold"];
+const STATUS_ORDER = ["incoming", "service", "await_order", "await_parts", "body", "paint", "attention", "available", "listed"];
 
 // Foruddefinerede placeringer (man kan også skrive en egen)
 const LOCATIONS = ["Sanjar", "Roman", "T-by", "Ronnie", "Jan", "Karlslunde"];
@@ -88,8 +89,9 @@ const CATEGORIES = {
   mainline: { label: "Mainline",           color: "#2563eb" },
   private:  { label: "Private collection", color: "#7c3aed" },
   dookie:   { label: "Dookie",             color: "#92400e" },
+  solgte:   { label: "Solgte biler",       color: "#475569" },
 };
-const CATEGORY_ORDER = ["mainline", "engros", "private", "dookie"];
+const CATEGORY_ORDER = ["mainline", "engros", "private", "dookie", "solgte"];
 
 const kr = (n) => n == null ? "—" : new Intl.NumberFormat("da-DK").format(n) + " kr.";
 const profit = (car) => (car.price != null && car.purchase_price != null) ? car.price - car.purchase_price : null;
@@ -206,15 +208,20 @@ export default function App() {
   if (cars === null) return <Shell><div style={{ padding: 40, color: "#64748b" }}>Indlæser flåde…</div></Shell>;
 
   const selectedCar = cars.find((c) => c.id === selected);
-  const counts = STATUS_ORDER.reduce((a, s) => { a[s] = cars.filter((c) => c.status === s).length; return a; }, {});
 
-  // Kategori-tællinger
+  // Biler der matcher den valgte overkategori — status- og placerings-tal
+  // beregnes ud fra denne, så de opdaterer sig når man vælger en kategori.
+  const carsInCat = catFilter === "all" ? cars : cars.filter((c) => (c.category || "mainline") === catFilter);
+
+  const counts = STATUS_ORDER.reduce((a, s) => { a[s] = carsInCat.filter((c) => c.status === s).length; return a; }, {});
+
+  // Kategori-tællinger (altid på tværs af hele flåden, så man kan skifte kategori)
   const catCounts = CATEGORY_ORDER.reduce((a, cat) => { a[cat] = cars.filter((c) => (c.category || "mainline") === cat).length; return a; }, {});
 
-  // Placerings-tællinger. Alle faste + eventuelle egne der forekommer i data.
+  // Placerings-tællinger — også afhængige af valgt kategori.
   const usedLocations = Array.from(new Set(cars.map((c) => (c.location || "").trim()).filter(Boolean)));
   const allLocations = [...LOCATIONS, ...usedLocations.filter((l) => !LOCATIONS.includes(l))];
-  const locCounts = allLocations.reduce((a, loc) => { a[loc] = cars.filter((c) => (c.location || "").trim() === loc).length; return a; }, {});
+  const locCounts = allLocations.reduce((a, loc) => { a[loc] = carsInCat.filter((c) => (c.location || "").trim() === loc).length; return a; }, {});
   // Sortér placeringer fra flest til færrest biler
   const locationList = [...allLocations].sort((a, b) => (locCounts[b] || 0) - (locCounts[a] || 0));
 
@@ -256,7 +263,7 @@ export default function App() {
           sidebarWidth={SIDEBAR_W} onViewerChange={setViewerOpen} locationOptions={allLocations} />
       ) : (
         <>
-          <Header total={cars.length} counts={counts} />
+          <Header total={carsInCat.length} counts={counts} />
           <CategoryBar catFilter={catFilter} setCatFilter={setCatFilter} catCounts={catCounts} total={cars.length} />
           <StockValue byCat={stockByCat} total={stockTotal} hidden={hidePrices} onReveal={() => setHidePrices(false)} onHide={() => setHidePrices(true)} />
           <Toolbar query={query} setQuery={setQuery} filter={filter} setFilter={setFilter} counts={counts} total={cars.length} onAdd={() => setAdding(true)} />
