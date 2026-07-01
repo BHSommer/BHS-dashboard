@@ -105,11 +105,11 @@ const profitColor = (car) => {
 };
 const today = () => new Date().toISOString().slice(0, 10);
 
-// Formatér input til "dd mm yyyy" mens man skriver (kun cifre, auto-mellemrum)
+// Formatér input til "DD-MM-YYYY" mens man skriver (kun cifre, auto-bindestreg)
 const formatDateInput = (raw) => {
   const digits = raw.replace(/\D/g, "").slice(0, 8);
   const parts = [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)].filter(Boolean);
-  return parts.join(" ");
+  return parts.join("-");
 };
 
 export default function App() {
@@ -679,9 +679,9 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 4
               <EditField label="Salgspris (kr.)" value={form.price} onChange={(v) => setForm({ ...form, price: v })} type="number" />
               <LocationPicker label="Placering" value={form.location} onChange={(v) => setForm({ ...form, location: v })} options={locationOptions} />
               <div>
-                <div style={{ fontSize: 12, color: "#64748b", fontWeight: 500, marginBottom: 4 }}>Senest syn (dd mm yyyy)</div>
+                <div style={{ fontSize: 12, color: "#64748b", fontWeight: 500, marginBottom: 4 }}>Senest syn (DD-MM-YYYY)</div>
                 <input value={form.last_inspection} onChange={(e) => setForm({ ...form, last_inspection: formatDateInput(e.target.value) })}
-                  placeholder="dd mm yyyy" inputMode="numeric"
+                  placeholder="DD-MM-YYYY" inputMode="numeric"
                   style={{ width: "100%", padding: "9px 11px", border: "1px solid #d8dee8", borderRadius: 8, fontSize: 14, outline: "none" }} />
               </div>
               <div>
@@ -963,9 +963,9 @@ function AddModal({ onClose, onAdd, locationOptions = LOCATIONS }) {
           <Input label="Købspris (kr.)" v={f.purchase_price} on={set("purchase_price")} type="number" />
           <Input label="Salgspris (kr.)" v={f.price} on={set("price")} type="number" />
           <div>
-            <Label>Senest syn (dd mm yyyy)</Label>
+            <Label>Senest syn (DD-MM-YYYY)</Label>
             <input value={f.last_inspection} onChange={(e) => setF({ ...f, last_inspection: formatDateInput(e.target.value) })}
-              placeholder="dd mm yyyy" inputMode="numeric" style={inputStyle} />
+              placeholder="DD-MM-YYYY" inputMode="numeric" style={inputStyle} />
           </div>
           <LocationPicker label="Placering" value={f.location} onChange={(v) => setF({ ...f, location: v })} options={locationOptions} inputStyle={inputStyle} />
           <div style={{ gridColumn: "1 / -1" }}>
