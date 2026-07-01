@@ -117,6 +117,38 @@ export default function App() {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
+  // --- Browser-historik: gør browserens frem/tilbage-knapper virksomme ---
+  // Læs valgt bil fra URL-hash (fx #bil/123)
+  const carIdFromHash = () => {
+    const m = window.location.hash.match(/^#bil\/(.+)$/);
+    return m ? m[1] : null;
+  };
+
+  // Ved første indlæsning: hvis URL'en peger på en bil, vis den
+  useEffect(() => {
+    setSelected(carIdFromHash());
+    const onPop = () => setSelected(carIdFromHash());
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  // Åbn en bil: skub ny historik-post så tilbage-knappen virker
+  const openCar = (id) => {
+    if (window.location.hash !== `#bil/${id}`) {
+      window.history.pushState({ carId: id }, "", `#bil/${id}`);
+    }
+    setSelected(id);
+  };
+
+  // Luk bilen: gå tilbage i historikken (svarer til browserens tilbage-knap)
+  const closeCar = () => {
+    if (carIdFromHash()) {
+      window.history.back();
+    } else {
+      setSelected(null);
+    }
+  };
+
   async function fetchCars() {
     const { data, error } = await supabase
       .from("cars")
@@ -147,7 +179,10 @@ export default function App() {
   const remove = async (id) => {
     const { error } = await supabase.from("cars").delete().eq("id", id);
     if (error) setError(error.message);
-    else { setSelected(null); fetchCars(); }
+    else {
+      if (carIdFromHash()) window.history.back(); else setSelected(null);
+      fetchCars();
+    }
   };
 
   if (cars === null) return <Shell><div style={{ padding: 40, color: "#64748b" }}>Indlæser flåde…</div></Shell>;
@@ -191,7 +226,7 @@ export default function App() {
         </div>
       )}
       {selectedCar ? (
-        <Detail car={selectedCar} onBack={() => setSelected(null)} onSetStatus={setStatus} onUpdate={updateCar} onRemove={remove}
+        <Detail car={selectedCar} onBack={closeCar} onSetStatus={setStatus} onUpdate={updateCar} onRemove={remove}
           sidebarWidth={SIDEBAR_W} onViewerChange={setViewerOpen} />
       ) : (
         <>
@@ -200,7 +235,7 @@ export default function App() {
           <StockValue byCat={stockByCat} total={stockTotal} />
           <Toolbar query={query} setQuery={setQuery} filter={filter} setFilter={setFilter} counts={counts} total={cars.length} onAdd={() => setAdding(true)} />
           <div style={grid}>
-            {filtered.map((c) => <CarCard key={c.id} car={c} onClick={() => setSelected(c.id)} />)}
+            {filtered.map((c) => <CarCard key={c.id} car={c} onClick={() => openCar(c.id)} />)}
           </div>
           {filtered.length === 0 && (
             <div style={empty}>
