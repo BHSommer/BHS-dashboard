@@ -157,9 +157,21 @@ export default function App() {
   const catCounts = CATEGORY_ORDER.reduce((a, cat) => { a[cat] = cars.filter((c) => (c.category || "mainline") === cat).length; return a; }, {});
 
   // Biler i den valgte overkategori (bruges til lagerværdi)
-  const carsInCat = catFilter === "all" ? cars : cars.filter((c) => (c.category || "mainline") === catFilter);
-  const stockBuy = carsInCat.reduce((sum, c) => sum + (c.purchase_price || 0), 0);
-  const stockSell = carsInCat.reduce((sum, c) => sum + (c.price || 0), 0);
+  // Købs- og salgsværdi pr. kategori (til oversigten på forsiden)
+  const stockByCat = CATEGORY_ORDER.reduce((acc, cat) => {
+    const list = cars.filter((c) => (c.category || "mainline") === cat);
+    acc[cat] = {
+      buy: list.reduce((s, c) => s + (c.purchase_price || 0), 0),
+      sell: list.reduce((s, c) => s + (c.price || 0), 0),
+      count: list.length,
+    };
+    return acc;
+  }, {});
+  const stockTotal = {
+    buy: cars.reduce((s, c) => s + (c.purchase_price || 0), 0),
+    sell: cars.reduce((s, c) => s + (c.price || 0), 0),
+    count: cars.length,
+  };
 
   const filtered = cars.filter((c) => {
     const mf = filter === "all" || c.status === filter;
@@ -183,7 +195,7 @@ export default function App() {
         <>
           <Header total={cars.length} counts={counts} />
           <CategoryBar catFilter={catFilter} setCatFilter={setCatFilter} catCounts={catCounts} total={cars.length} />
-          <StockValue buy={stockBuy} sell={stockSell} scope={catFilter} count={carsInCat.length} />
+          <StockValue byCat={stockByCat} total={stockTotal} />
           <Toolbar query={query} setQuery={setQuery} filter={filter} setFilter={setFilter} counts={counts} total={cars.length} onAdd={() => setAdding(true)} />
           <div style={grid}>
             {filtered.map((c) => <CarCard key={c.id} car={c} onClick={() => setSelected(c.id)} />)}
@@ -272,22 +284,55 @@ function CategoryBar({ catFilter, setCatFilter, catCounts, total }) {
   );
 }
 
-function StockValue({ buy, sell, scope, count }) {
-  const scopeLabel = scope === "all" ? "hele flåden" : CATEGORIES[scope]?.label;
+function StockValue({ byCat, total }) {
   const fmt = (n) => new Intl.NumberFormat("da-DK").format(n) + " kr.";
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 18 }}>
-      <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 13, padding: "16px 18px" }}>
-        <div style={{ fontSize: 13, color: "#64748b", marginBottom: 4 }}>Lagerværdi indkøb <span style={{ color: "#94a3b8" }}>· {scopeLabel}</span></div>
-        <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", color: "#0f172a" }}>{fmt(buy)}</div>
-        <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 3 }}>{count} {count === 1 ? "bil" : "biler"}</div>
-      </div>
-      <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 13, padding: "16px 18px" }}>
-        <div style={{ fontSize: 13, color: "#64748b", marginBottom: 4 }}>Lagerværdi salg <span style={{ color: "#94a3b8" }}>· {scopeLabel}</span></div>
-        <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", color: "#1f9d55" }}>{fmt(sell)}</div>
-        <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 3 }}>
-          Avance: {(sell - buy) >= 0 ? "+" : ""}{fmt(sell - buy)}
+    <div style={{ marginBottom: 18 }}>
+      {/* Total for hele flåden */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 12 }}>
+        <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 13, padding: "16px 18px" }}>
+          <div style={{ fontSize: 13, color: "#64748b", marginBottom: 4 }}>Lagerværdi indkøb <span style={{ color: "#94a3b8" }}>· hele flåden</span></div>
+          <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", color: "#0f172a" }}>{fmt(total.buy)}</div>
+          <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 3 }}>{total.count} {total.count === 1 ? "bil" : "biler"}</div>
         </div>
+        <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 13, padding: "16px 18px" }}>
+          <div style={{ fontSize: 13, color: "#64748b", marginBottom: 4 }}>Lagerværdi salg <span style={{ color: "#94a3b8" }}>· hele flåden</span></div>
+          <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", color: "#1f9d55" }}>{fmt(total.sell)}</div>
+          <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 3 }}>Avance: {(total.sell - total.buy) >= 0 ? "+" : ""}{fmt(total.sell - total.buy)}</div>
+        </div>
+      </div>
+
+      {/* Oversigt pr. kategori */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
+        {CATEGORY_ORDER.map((cat) => {
+          const c = CATEGORIES[cat];
+          const d = byCat[cat] || { buy: 0, sell: 0, count: 0 };
+          return (
+            <div key={cat} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 13, padding: "14px 16px", borderTop: `3px solid ${c.color}` }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 14, fontWeight: 700, color: c.color }}>
+                  <span style={{ width: 9, height: 9, borderRadius: 999, background: c.color, display: "inline-block" }} />
+                  {c.label}
+                </div>
+                <span style={{ fontSize: 12, color: "#94a3b8" }}>{d.count} {d.count === 1 ? "bil" : "biler"}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 5 }}>
+                <span style={{ color: "#64748b" }}>Købspris</span>
+                <span style={{ fontWeight: 600, color: "#0f172a" }}>{fmt(d.buy)}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 5 }}>
+                <span style={{ color: "#64748b" }}>Salgspris</span>
+                <span style={{ fontWeight: 600, color: "#1f9d55" }}>{fmt(d.sell)}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, paddingTop: 6, borderTop: "1px solid #f1f5f9" }}>
+                <span style={{ color: "#64748b" }}>Avance</span>
+                <span style={{ fontWeight: 700, color: (d.sell - d.buy) >= 0 ? "#1f9d55" : "#dc2626" }}>
+                  {(d.sell - d.buy) >= 0 ? "+" : ""}{fmt(d.sell - d.buy)}
+                </span>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
