@@ -105,6 +105,13 @@ const profitColor = (car) => {
 };
 const today = () => new Date().toISOString().slice(0, 10);
 
+// Formatér input til "dd mm yyyy" mens man skriver (kun cifre, auto-mellemrum)
+const formatDateInput = (raw) => {
+  const digits = raw.replace(/\D/g, "").slice(0, 8);
+  const parts = [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)].filter(Boolean);
+  return parts.join(" ");
+};
+
 export default function App() {
   const [cars, setCars] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -532,6 +539,7 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 4
       plate: car.plate || "", vin: car.vin || "", km: car.km ?? "",
       price: car.price ?? "", purchase_price: car.purchase_price ?? "", location: car.location || "",
       category: car.category || "mainline",
+      last_inspection: car.last_inspection || "",
     });
     setEditing(true);
   };
@@ -549,6 +557,7 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 4
       purchase_price: form.purchase_price === "" ? null : +form.purchase_price,
       location: form.location.trim(),
       category: form.category,
+      last_inspection: (form.last_inspection || "").trim() || null,
     });
     setEditing(false);
   };
@@ -670,6 +679,12 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 4
               <EditField label="Salgspris (kr.)" value={form.price} onChange={(v) => setForm({ ...form, price: v })} type="number" />
               <LocationPicker label="Placering" value={form.location} onChange={(v) => setForm({ ...form, location: v })} options={locationOptions} />
               <div>
+                <div style={{ fontSize: 12, color: "#64748b", fontWeight: 500, marginBottom: 4 }}>Senest syn (dd mm yyyy)</div>
+                <input value={form.last_inspection} onChange={(e) => setForm({ ...form, last_inspection: formatDateInput(e.target.value) })}
+                  placeholder="dd mm yyyy" inputMode="numeric"
+                  style={{ width: "100%", padding: "9px 11px", border: "1px solid #d8dee8", borderRadius: 8, fontSize: 14, outline: "none" }} />
+              </div>
+              <div>
                 <div style={{ fontSize: 12, color: "#64748b", fontWeight: 500, marginBottom: 4 }}>Overkategori</div>
                 <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
                   style={{ width: "100%", padding: "9px 11px", border: "1px solid #d8dee8", borderRadius: 8, fontSize: 14, outline: "none", background: "#fff" }}>
@@ -685,6 +700,7 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 4
               <Field label="Fortjeneste" value={profitText(car)} valueColor={profitColor(car)} />
               <Field label="Placering" value={car.location || "—"} />
               <Field label="Årgang" value={car.year} />
+              <Field label="Senest syn" value={car.last_inspection || "—"} />
             </div>
           )}
           <Section title={`Billeder (${images.length}/${MAX_IMAGES})`} icon={Camera}>
@@ -924,15 +940,15 @@ function Section({ title, icon: Icon, children }) {
 }
 
 function AddModal({ onClose, onAdd, locationOptions = LOCATIONS }) {
-  const [f, setF] = useState({ make: "", model: "", year: "", plate: "", vin: "", km: "", purchase_price: "", price: "", status: "service", category: "mainline", location: "", notes: "" });
+  const [f, setF] = useState({ make: "", model: "", year: "", plate: "", vin: "", km: "", purchase_price: "", price: "", status: "service", category: "mainline", location: "", last_inspection: "", notes: "" });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const submit = () => {
     if (!f.make || !f.model) return alert("Mærke og model skal udfyldes.");
-    onAdd({ ...f, year: +f.year || new Date().getFullYear(), km: +f.km || 0, price: +f.price || null, purchase_price: +f.purchase_price || null });
+    onAdd({ ...f, year: +f.year || new Date().getFullYear(), km: +f.km || 0, price: +f.price || null, purchase_price: +f.purchase_price || null, last_inspection: f.last_inspection.trim() || null });
   };
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.45)", display: "grid", placeItems: "center", padding: 20, zIndex: 50 }}>
-      <div onClick={(e) => e.stopPropagation()} className="fade" style={{ background: "#fff", borderRadius: 14, width: "100%", maxWidth: 520, maxHeight: "90vh", overflow: "auto" }}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.45)", display: "grid", placeItems: "center", padding: 20, zIndex: 50 }}>
+      <div className="fade" style={{ background: "#fff", borderRadius: 14, width: "100%", maxWidth: 520, maxHeight: "90vh", overflow: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "18px 22px", borderBottom: "1px solid #eef2f7" }}>
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Tilføj bil</h2>
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#94a3b8" }}><X size={20} /></button>
@@ -946,6 +962,11 @@ function AddModal({ onClose, onAdd, locationOptions = LOCATIONS }) {
           <Input label="Kilometer" v={f.km} on={set("km")} type="number" />
           <Input label="Købspris (kr.)" v={f.purchase_price} on={set("purchase_price")} type="number" />
           <Input label="Salgspris (kr.)" v={f.price} on={set("price")} type="number" />
+          <div>
+            <Label>Senest syn (dd mm yyyy)</Label>
+            <input value={f.last_inspection} onChange={(e) => setF({ ...f, last_inspection: formatDateInput(e.target.value) })}
+              placeholder="dd mm yyyy" inputMode="numeric" style={inputStyle} />
+          </div>
           <LocationPicker label="Placering" value={f.location} onChange={(v) => setF({ ...f, location: v })} options={locationOptions} inputStyle={inputStyle} />
           <div style={{ gridColumn: "1 / -1" }}>
             <Label>Overkategori</Label>
