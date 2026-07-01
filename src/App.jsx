@@ -70,15 +70,17 @@ const STATUSES = {
   sold:      { label: "Solgt",         color: "#475569", bg: "#eef1f5", icon: Tag },
   attention: { label: "Skal tjekkes",  color: "#b91c1c", bg: "#fcebea", icon: AlertTriangle },
   sanjar:    { label: "Sanjar",        color: "#0891b2", bg: "#e0f5fa", icon: MapPin },
+  roman:     { label: "Roman",         color: "#be185d", bg: "#fce7f0", icon: MapPin },
 };
-const STATUS_ORDER = ["incoming", "service", "body", "paint", "attention", "sanjar", "available", "listed", "sold"];
+const STATUS_ORDER = ["incoming", "service", "body", "paint", "attention", "sanjar", "roman", "available", "listed", "sold"];
 
 const CATEGORIES = {
   engros:   { label: "Engros",             color: "#eab308" },
   mainline: { label: "Mainline",           color: "#2563eb" },
   private:  { label: "Private collection", color: "#7c3aed" },
+  dookie:   { label: "Dookie",             color: "#16a34a" },
 };
-const CATEGORY_ORDER = ["engros", "mainline", "private"];
+const CATEGORY_ORDER = ["engros", "mainline", "private", "dookie"];
 
 const kr = (n) => n == null ? "—" : new Intl.NumberFormat("da-DK").format(n) + " kr.";
 const profit = (car) => (car.price != null && car.purchase_price != null) ? car.price - car.purchase_price : null;
