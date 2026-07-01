@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Car, Wrench, PaintBucket, CheckCircle2, Clock, AlertTriangle,
   Plus, X, Search, Trash2, ChevronLeft, Tag, Gauge, FileText, RefreshCw,
-  ImagePlus, Loader2, Camera, CheckSquare, Check, Pencil, Truck, MapPin
+  ImagePlus, Loader2, Camera, CheckSquare, Check, Pencil, Truck, MapPin, Eye, EyeOff
 } from "lucide-react";
 import { supabase } from "./supabase.js";
 
@@ -75,6 +75,14 @@ const STATUS_ORDER = ["incoming", "service", "body", "paint", "attention", "avai
 // Foruddefinerede placeringer (man kan også skrive en egen)
 const LOCATIONS = ["Sanjar", "Roman", "T-by", "Butik", "Ronnie", "Jan"];
 
+// Sikre opslag: hvis en bil har en gammel/ukendt status eller kategori
+// (fx en der er blevet fjernet), falder vi tilbage på en standard i stedet
+// for at lade appen crashe.
+const FALLBACK_STATUS = { label: "Ukendt", color: "#64748b", bg: "#eef1f5", icon: AlertTriangle };
+const FALLBACK_CATEGORY = { label: "Uden kategori", color: "#64748b" };
+const getStatus = (key) => STATUSES[key] || FALLBACK_STATUS;
+const getCategory = (key) => CATEGORIES[key] || CATEGORIES.mainline || FALLBACK_CATEGORY;
+
 const CATEGORIES = {
   engros:   { label: "Engros",             color: "#eab308" },
   mainline: { label: "Mainline",           color: "#2563eb" },
@@ -107,6 +115,7 @@ export default function App() {
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState(null);
   const [viewerOpen, setViewerOpen] = useState(false);
+  const [hidePrices, setHidePrices] = useState(false);
   const SIDEBAR_W = 460;
 
   // Initial load + realtime subscription so every device stays in sync
@@ -161,7 +170,7 @@ export default function App() {
   }
 
   const setStatus = async (car, status, note) => {
-    const log = [...(car.log || []), { t: today(), s: status, note: note || STATUSES[status].label }];
+    const log = [...(car.log || []), { t: today(), s: status, note: note || getStatus(status).label }];
     const { error } = await supabase.from("cars").update({ status, log }).eq("id", car.id);
     if (error) setError(error.message); else fetchCars();
   };
@@ -240,7 +249,7 @@ export default function App() {
         <>
           <Header total={cars.length} counts={counts} />
           <CategoryBar catFilter={catFilter} setCatFilter={setCatFilter} catCounts={catCounts} total={cars.length} />
-          <StockValue byCat={stockByCat} total={stockTotal} />
+          <StockValue byCat={stockByCat} total={stockTotal} hidden={hidePrices} onToggle={() => setHidePrices((v) => !v)} />
           <Toolbar query={query} setQuery={setQuery} filter={filter} setFilter={setFilter} counts={counts} total={cars.length} onAdd={() => setAdding(true)} />
           <LocationBar locFilter={locFilter} setLocFilter={setLocFilter} locList={locationList} locCounts={locCounts} total={cars.length} />
           <div style={grid}>
@@ -330,10 +339,17 @@ function CategoryBar({ catFilter, setCatFilter, catCounts, total }) {
   );
 }
 
-function StockValue({ byCat, total }) {
-  const fmt = (n) => new Intl.NumberFormat("da-DK").format(n) + " kr.";
+function StockValue({ byCat, total, hidden, onToggle }) {
+  const fmt = (n) => hidden ? "•••••" : new Intl.NumberFormat("da-DK").format(n) + " kr.";
   return (
     <div style={{ marginBottom: 18 }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+        <button onClick={onToggle}
+          style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", border: "1px solid #d8dee8", color: "#475569", borderRadius: 9, padding: "7px 13px", fontSize: 13, fontWeight: 600 }}>
+          {hidden ? <Eye size={15} /> : <EyeOff size={15} />}
+          {hidden ? "Vis priser" : "Skjul priser"}
+        </button>
+      </div>
       {/* Total for hele flåden */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 12 }}>
         <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 13, padding: "16px 18px" }}>
@@ -344,14 +360,14 @@ function StockValue({ byCat, total }) {
         <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 13, padding: "16px 18px" }}>
           <div style={{ fontSize: 13, color: "#64748b", marginBottom: 4 }}>Lagerværdi salg <span style={{ color: "#94a3b8" }}>· hele flåden</span></div>
           <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", color: "#1f9d55" }}>{fmt(total.sell)}</div>
-          <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 3 }}>Avance: {(total.sell - total.buy) >= 0 ? "+" : ""}{fmt(total.sell - total.buy)}</div>
+          <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 3 }}>Avance: {hidden ? "•••••" : ((total.sell - total.buy) >= 0 ? "+" : "") + fmt(total.sell - total.buy)}</div>
         </div>
       </div>
 
       {/* Oversigt pr. kategori */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
         {CATEGORY_ORDER.map((cat) => {
-          const c = CATEGORIES[cat];
+          const c = getCategory(cat);
           const d = byCat[cat] || { buy: 0, sell: 0, count: 0 };
           return (
             <div key={cat} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 13, padding: "14px 16px", borderTop: `3px solid ${c.color}` }}>
@@ -373,7 +389,7 @@ function StockValue({ byCat, total }) {
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, paddingTop: 6, borderTop: "1px solid #f1f5f9" }}>
                 <span style={{ color: "#64748b" }}>Avance</span>
                 <span style={{ fontWeight: 700, color: (d.sell - d.buy) >= 0 ? "#1f9d55" : "#dc2626" }}>
-                  {(d.sell - d.buy) >= 0 ? "+" : ""}{fmt(d.sell - d.buy)}
+                  {hidden ? "•••••" : ((d.sell - d.buy) >= 0 ? "+" : "") + fmt(d.sell - d.buy)}
                 </span>
               </div>
             </div>
@@ -440,7 +456,7 @@ function LocationBar({ locFilter, setLocFilter, locList, locCounts, total }) {
 }
 
 function StatusPill({ status, small }) {
-  const s = STATUSES[status]; const Icon = s.icon;
+  const s = getStatus(status); const Icon = s.icon;
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: s.bg, color: s.color, borderRadius: 999, padding: small ? "3px 9px" : "5px 11px", fontSize: small ? 12 : 13, fontWeight: 600 }}>
       <Icon size={small ? 13 : 14} /> {s.label}
@@ -449,8 +465,8 @@ function StatusPill({ status, small }) {
 }
 
 function CarCard({ car, onClick }) {
-  const s = STATUSES[car.status];
-  const cat = CATEGORIES[car.category || "mainline"];
+  const s = getStatus(car.status);
+  const cat = getCategory(car.category || "mainline");
   return (
     <button onClick={onClick} className="fade" style={{ textAlign: "left", background: "#fff", border: "1px solid #e2e8f0", borderRadius: 13, padding: 0, overflow: "hidden", display: "block", width: "100%", transition: "box-shadow .15s, transform .15s" }}
       onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 8px 22px rgba(15,23,42,.10)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
@@ -597,7 +613,7 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 4
         <ChevronLeft size={18} /> Tilbage til flåden
       </button>
       <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 14, overflow: "hidden" }}>
-        <div style={{ height: 6, background: STATUSES[car.status].color }} />
+        <div style={{ height: 6, background: getStatus(car.status).color }} />
         <div style={{ padding: 24 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
             <div style={{ flex: 1, minWidth: 200 }}>
