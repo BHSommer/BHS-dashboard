@@ -41,6 +41,13 @@ const STATUSES = {
 };
 const STATUS_ORDER = ["incoming", "service", "body", "paint", "attention", "available", "listed", "sold"];
 
+const CATEGORIES = {
+  engros:   { label: "Engros",             color: "#7c3aed" },
+  mainline: { label: "Mainline",           color: "#0369a1" },
+  private:  { label: "Private collection", color: "#b45309" },
+};
+const CATEGORY_ORDER = ["engros", "mainline", "private"];
+
 const kr = (n) => n == null ? "—" : new Intl.NumberFormat("da-DK").format(n) + " kr.";
 const profit = (car) => (car.price != null && car.purchase_price != null) ? car.price - car.purchase_price : null;
 const profitText = (car) => {
@@ -60,6 +67,7 @@ export default function App() {
   const [selected, setSelected] = useState(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
+  const [catFilter, setCatFilter] = useState("all");
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState(null);
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -112,11 +120,21 @@ export default function App() {
 
   const selectedCar = cars.find((c) => c.id === selected);
   const counts = STATUS_ORDER.reduce((a, s) => { a[s] = cars.filter((c) => c.status === s).length; return a; }, {});
+
+  // Kategori-tællinger
+  const catCounts = CATEGORY_ORDER.reduce((a, cat) => { a[cat] = cars.filter((c) => (c.category || "mainline") === cat).length; return a; }, {});
+
+  // Biler i den valgte overkategori (bruges til lagerværdi)
+  const carsInCat = catFilter === "all" ? cars : cars.filter((c) => (c.category || "mainline") === catFilter);
+  const stockBuy = carsInCat.reduce((sum, c) => sum + (c.purchase_price || 0), 0);
+  const stockSell = carsInCat.reduce((sum, c) => sum + (c.price || 0), 0);
+
   const filtered = cars.filter((c) => {
     const mf = filter === "all" || c.status === filter;
+    const mc = catFilter === "all" || (c.category || "mainline") === catFilter;
     const q = query.toLowerCase().trim();
     const mq = !q || `${c.make} ${c.model} ${c.plate} ${c.year}`.toLowerCase().includes(q);
-    return mf && mq;
+    return mf && mc && mq;
   });
 
   return (
@@ -132,6 +150,8 @@ export default function App() {
       ) : (
         <>
           <Header total={cars.length} counts={counts} />
+          <CategoryBar catFilter={catFilter} setCatFilter={setCatFilter} catCounts={catCounts} total={cars.length} />
+          <StockValue buy={stockBuy} sell={stockSell} scope={catFilter} count={carsInCat.length} />
           <Toolbar query={query} setQuery={setQuery} filter={filter} setFilter={setFilter} counts={counts} total={cars.length} onAdd={() => setAdding(true)} />
           <div style={grid}>
             {filtered.map((c) => <CarCard key={c.id} car={c} onClick={() => setSelected(c.id)} />)}
@@ -196,6 +216,47 @@ function Stat({ n, label, accent = "#0f172a" }) {
     <div style={{ textAlign: "right" }}>
       <div style={{ fontSize: 24, fontWeight: 700, color: accent, lineHeight: 1 }}>{n}</div>
       <div style={{ fontSize: 12, color: "#64748b", marginTop: 3 }}>{label}</div>
+    </div>
+  );
+}
+
+function CategoryBar({ catFilter, setCatFilter, catCounts, total }) {
+  const chips = [{ key: "all", label: "Alle kategorier", n: total, color: "#0f172a" },
+    ...CATEGORY_ORDER.map((cat) => ({ key: cat, label: CATEGORIES[cat].label, n: catCounts[cat] || 0, color: CATEGORIES[cat].color }))];
+  return (
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+      {chips.map((c) => {
+        const active = catFilter === c.key;
+        return (
+          <button key={c.key} onClick={() => setCatFilter(c.key)}
+            style={{ display: "flex", alignItems: "center", gap: 8, border: active ? `1px solid ${c.color}` : "1px solid #d8dee8", background: active ? c.color : "#fff", color: active ? "#fff" : "#475569", borderRadius: 10, padding: "9px 15px", fontSize: 14, fontWeight: 600 }}>
+            {c.key !== "all" && <span style={{ width: 9, height: 9, borderRadius: 999, background: active ? "#fff" : c.color, display: "inline-block" }} />}
+            {c.label}
+            <span style={{ fontSize: 13, opacity: 0.75 }}>{c.n}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function StockValue({ buy, sell, scope, count }) {
+  const scopeLabel = scope === "all" ? "hele flåden" : CATEGORIES[scope]?.label;
+  const fmt = (n) => new Intl.NumberFormat("da-DK").format(n) + " kr.";
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 18 }}>
+      <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 13, padding: "16px 18px" }}>
+        <div style={{ fontSize: 13, color: "#64748b", marginBottom: 4 }}>Lagerværdi indkøb <span style={{ color: "#94a3b8" }}>· {scopeLabel}</span></div>
+        <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", color: "#0f172a" }}>{fmt(buy)}</div>
+        <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 3 }}>{count} {count === 1 ? "bil" : "biler"}</div>
+      </div>
+      <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 13, padding: "16px 18px" }}>
+        <div style={{ fontSize: 13, color: "#64748b", marginBottom: 4 }}>Lagerværdi salg <span style={{ color: "#94a3b8" }}>· {scopeLabel}</span></div>
+        <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", color: "#1f9d55" }}>{fmt(sell)}</div>
+        <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 3 }}>
+          Avance: {(sell - buy) >= 0 ? "+" : ""}{fmt(sell - buy)}
+        </div>
+      </div>
     </div>
   );
 }
@@ -268,7 +329,18 @@ function CarCard({ car, onClick }) {
       <div style={{ padding: 16 }}>
         <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.01em" }}>{car.make} {car.model}</div>
         <div style={{ fontSize: 13, color: "#64748b", marginTop: 2 }}>{car.year} · {car.plate}</div>
-        <div style={{ margin: "13px 0 12px" }}><StatusPill status={car.status} small /></div>
+        <div style={{ margin: "13px 0 12px", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          <StatusPill status={car.status} small />
+          {(() => {
+            const cat = CATEGORIES[car.category || "mainline"];
+            return (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#f8fafc", border: "1px solid #e2e8f0", color: cat.color, borderRadius: 999, padding: "3px 9px", fontSize: 12, fontWeight: 600 }}>
+                <span style={{ width: 7, height: 7, borderRadius: 999, background: cat.color, display: "inline-block" }} />
+                {cat.label}
+              </span>
+            );
+          })()}
+        </div>
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#475569", borderTop: "1px solid #f1f5f9", paddingTop: 11 }}>
           <span>{new Intl.NumberFormat("da-DK").format(car.km || 0)} km</span>
           <span style={{ fontWeight: 600, color: "#0f172a" }}>{kr(car.price)}</span>
@@ -299,6 +371,7 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 4
       make: car.make || "", model: car.model || "", year: car.year ?? "",
       plate: car.plate || "", vin: car.vin || "", km: car.km ?? "",
       price: car.price ?? "", purchase_price: car.purchase_price ?? "", location: car.location || "",
+      category: car.category || "mainline",
     });
     setEditing(true);
   };
@@ -315,6 +388,7 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 4
       price: form.price === "" ? null : +form.price,
       purchase_price: form.purchase_price === "" ? null : +form.purchase_price,
       location: form.location.trim(),
+      category: form.category,
     });
     setEditing(false);
   };
@@ -435,6 +509,13 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 4
               <EditField label="Købspris (kr.)" value={form.purchase_price} onChange={(v) => setForm({ ...form, purchase_price: v })} type="number" />
               <EditField label="Salgspris (kr.)" value={form.price} onChange={(v) => setForm({ ...form, price: v })} type="number" />
               <EditField label="Placering" value={form.location} onChange={(v) => setForm({ ...form, location: v })} />
+              <div>
+                <div style={{ fontSize: 12, color: "#64748b", fontWeight: 500, marginBottom: 4 }}>Overkategori</div>
+                <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
+                  style={{ width: "100%", padding: "9px 11px", border: "1px solid #d8dee8", borderRadius: 8, fontSize: 14, outline: "none", background: "#fff" }}>
+                  {CATEGORY_ORDER.map((cat) => <option key={cat} value={cat}>{CATEGORIES[cat].label}</option>)}
+                </select>
+              </div>
             </div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 1, background: "#eef2f7", border: "1px solid #eef2f7", borderRadius: 10, marginTop: 20, overflow: "hidden" }}>
@@ -636,7 +717,7 @@ function Section({ title, icon: Icon, children }) {
 }
 
 function AddModal({ onClose, onAdd }) {
-  const [f, setF] = useState({ make: "", model: "", year: "", plate: "", vin: "", km: "", purchase_price: "", price: "", status: "service", location: "", notes: "" });
+  const [f, setF] = useState({ make: "", model: "", year: "", plate: "", vin: "", km: "", purchase_price: "", price: "", status: "service", category: "mainline", location: "", notes: "" });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const submit = () => {
     if (!f.make || !f.model) return alert("Mærke og model skal udfyldes.");
@@ -659,6 +740,12 @@ function AddModal({ onClose, onAdd }) {
           <Input label="Købspris (kr.)" v={f.purchase_price} on={set("purchase_price")} type="number" />
           <Input label="Salgspris (kr.)" v={f.price} on={set("price")} type="number" />
           <Input label="Placering" v={f.location} on={set("location")} />
+          <div style={{ gridColumn: "1 / -1" }}>
+            <Label>Overkategori</Label>
+            <select value={f.category} onChange={set("category")} style={inputStyle}>
+              {CATEGORY_ORDER.map((cat) => <option key={cat} value={cat}>{CATEGORIES[cat].label}</option>)}
+            </select>
+          </div>
           <div style={{ gridColumn: "1 / -1" }}>
             <Label>Status</Label>
             <select value={f.status} onChange={set("status")} style={inputStyle}>
