@@ -349,16 +349,18 @@ function CategoryBar({ catFilter, setCatFilter, catCounts, total }) {
 }
 
 function StockValue({ byCat, total, hidden, onToggle }) {
-  const fmt = (n) => hidden ? "•••••" : new Intl.NumberFormat("da-DK").format(n) + " kr.";
+  const fmt = (n) => new Intl.NumberFormat("da-DK").format(n) + " kr.";
   return (
     <div style={{ marginBottom: 18 }}>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: hidden ? 0 : 10 }}>
         <button onClick={onToggle}
           style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", border: "1px solid #d8dee8", color: "#475569", borderRadius: 9, padding: "7px 13px", fontSize: 13, fontWeight: 600 }}>
           {hidden ? <Eye size={15} /> : <EyeOff size={15} />}
-          {hidden ? "Vis priser" : "Skjul priser"}
+          {hidden ? "Vis lagerværdi" : "Skjul lagerværdi"}
         </button>
       </div>
+      {!hidden && (
+      <>
       {/* Total for hele flåden */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 12 }}>
         <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 13, padding: "16px 18px" }}>
@@ -369,7 +371,7 @@ function StockValue({ byCat, total, hidden, onToggle }) {
         <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 13, padding: "16px 18px" }}>
           <div style={{ fontSize: 13, color: "#64748b", marginBottom: 4 }}>Lagerværdi salg <span style={{ color: "#94a3b8" }}>· hele flåden</span></div>
           <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", color: "#1f9d55" }}>{fmt(total.sell)}</div>
-          <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 3 }}>Avance: {hidden ? "•••••" : ((total.sell - total.buy) >= 0 ? "+" : "") + fmt(total.sell - total.buy)}</div>
+          <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 3 }}>Avance: {(total.sell - total.buy) >= 0 ? "+" : ""}{fmt(total.sell - total.buy)}</div>
         </div>
       </div>
 
@@ -398,13 +400,15 @@ function StockValue({ byCat, total, hidden, onToggle }) {
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, paddingTop: 6, borderTop: "1px solid #f1f5f9" }}>
                 <span style={{ color: "#64748b" }}>Avance</span>
                 <span style={{ fontWeight: 700, color: (d.sell - d.buy) >= 0 ? "#1f9d55" : "#dc2626" }}>
-                  {hidden ? "•••••" : ((d.sell - d.buy) >= 0 ? "+" : "") + fmt(d.sell - d.buy)}
+                  {(d.sell - d.buy) >= 0 ? "+" : ""}{fmt(d.sell - d.buy)}
                 </span>
               </div>
             </div>
           );
         })}
       </div>
+      </>
+      )}
     </div>
   );
 }
