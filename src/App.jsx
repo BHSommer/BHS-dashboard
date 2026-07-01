@@ -206,8 +206,10 @@ export default function App() {
 
   // Placerings-tællinger. Alle faste + eventuelle egne der forekommer i data.
   const usedLocations = Array.from(new Set(cars.map((c) => (c.location || "").trim()).filter(Boolean)));
-  const locationList = [...LOCATIONS, ...usedLocations.filter((l) => !LOCATIONS.includes(l))];
-  const locCounts = locationList.reduce((a, loc) => { a[loc] = cars.filter((c) => (c.location || "").trim() === loc).length; return a; }, {});
+  const allLocations = [...LOCATIONS, ...usedLocations.filter((l) => !LOCATIONS.includes(l))];
+  const locCounts = allLocations.reduce((a, loc) => { a[loc] = cars.filter((c) => (c.location || "").trim() === loc).length; return a; }, {});
+  // Sortér placeringer fra flest til færrest biler
+  const locationList = [...allLocations].sort((a, b) => (locCounts[b] || 0) - (locCounts[a] || 0));
 
   // Biler i den valgte overkategori (bruges til lagerværdi)
   // Købs- og salgsværdi pr. kategori (til oversigten på forsiden)
@@ -244,7 +246,7 @@ export default function App() {
       )}
       {selectedCar ? (
         <Detail car={selectedCar} onBack={closeCar} onSetStatus={setStatus} onUpdate={updateCar} onRemove={remove}
-          sidebarWidth={SIDEBAR_W} onViewerChange={setViewerOpen} />
+          sidebarWidth={SIDEBAR_W} onViewerChange={setViewerOpen} locationOptions={allLocations} />
       ) : (
         <>
           <Header total={cars.length} counts={counts} />
@@ -263,7 +265,7 @@ export default function App() {
           )}
         </>
       )}
-      {adding && <AddModal onClose={() => setAdding(false)} onAdd={addCar} />}
+      {adding && <AddModal onClose={() => setAdding(false)} onAdd={addCar} locationOptions={allLocations} />}
     </Shell>
   );
 }
@@ -509,7 +511,7 @@ function CarCard({ car, onClick }) {
   );
 }
 
-function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 460, onViewerChange }) {
+function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 460, onViewerChange, locationOptions = LOCATIONS }) {
   const [note, setNote] = useState("");
   const [notesDraft, setNotesDraft] = useState(car.notes || "");
   const [pendingStatus, setPendingStatus] = useState(null);
@@ -666,15 +668,7 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 4
               <EditField label="Kilometer" value={form.km} onChange={(v) => setForm({ ...form, km: v })} type="number" />
               <EditField label="Købspris (kr.)" value={form.purchase_price} onChange={(v) => setForm({ ...form, purchase_price: v })} type="number" />
               <EditField label="Salgspris (kr.)" value={form.price} onChange={(v) => setForm({ ...form, price: v })} type="number" />
-              <div>
-                <div style={{ fontSize: 12, color: "#64748b", fontWeight: 500, marginBottom: 4 }}>Placering</div>
-                <input list="location-options" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })}
-                  placeholder="Vælg eller skriv…"
-                  style={{ width: "100%", padding: "9px 11px", border: "1px solid #d8dee8", borderRadius: 8, fontSize: 14, outline: "none" }} />
-                <datalist id="location-options">
-                  {LOCATIONS.map((l) => <option key={l} value={l} />)}
-                </datalist>
-              </div>
+              <LocationPicker label="Placering" value={form.location} onChange={(v) => setForm({ ...form, location: v })} options={locationOptions} />
               <div>
                 <div style={{ fontSize: 12, color: "#64748b", fontWeight: 500, marginBottom: 4 }}>Overkategori</div>
                 <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
@@ -885,6 +879,38 @@ function EditField({ label, value, onChange, type = "text", width }) {
     </div>
   );
 }
+// Placeringsvælger: dropdown med alle placeringer + "Andet…" til egen indtastning.
+// Alle muligheder er altid tilgængelige uanset nuværende værdi.
+function LocationPicker({ label, value, onChange, options, inputStyle }) {
+  const known = options.includes(value);
+  const isCustom = value !== "" && !known;
+  const [custom, setCustom] = useState(isCustom);
+  const selStyle = inputStyle || { width: "100%", padding: "9px 11px", border: "1px solid #d8dee8", borderRadius: 8, fontSize: 14, outline: "none", background: "#fff" };
+  return (
+    <div>
+      <div style={{ fontSize: 12, color: "#64748b", fontWeight: 500, marginBottom: 4 }}>{label}</div>
+      {custom ? (
+        <div style={{ display: "flex", gap: 6 }}>
+          <input value={value} onChange={(e) => onChange(e.target.value)} placeholder="Skriv placering…" autoFocus
+            style={{ ...selStyle, flex: 1 }} />
+          <button type="button" onClick={() => { setCustom(false); onChange(""); }}
+            style={{ background: "#fff", border: "1px solid #d8dee8", color: "#475569", borderRadius: 8, padding: "0 12px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+            Liste
+          </button>
+        </div>
+      ) : (
+        <select value={known ? value : ""} onChange={(e) => {
+          if (e.target.value === "__other__") { setCustom(true); onChange(""); }
+          else onChange(e.target.value);
+        }} style={selStyle}>
+          <option value="">— vælg placering —</option>
+          {options.map((l) => <option key={l} value={l}>{l}</option>)}
+          <option value="__other__">Andet… (skriv selv)</option>
+        </select>
+      )}
+    </div>
+  );
+}
 function Section({ title, icon: Icon, children }) {
   return (
     <div style={{ marginTop: 26 }}>
@@ -897,7 +923,7 @@ function Section({ title, icon: Icon, children }) {
   );
 }
 
-function AddModal({ onClose, onAdd }) {
+function AddModal({ onClose, onAdd, locationOptions = LOCATIONS }) {
   const [f, setF] = useState({ make: "", model: "", year: "", plate: "", vin: "", km: "", purchase_price: "", price: "", status: "service", category: "mainline", location: "", notes: "" });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const submit = () => {
@@ -920,13 +946,7 @@ function AddModal({ onClose, onAdd }) {
           <Input label="Kilometer" v={f.km} on={set("km")} type="number" />
           <Input label="Købspris (kr.)" v={f.purchase_price} on={set("purchase_price")} type="number" />
           <Input label="Salgspris (kr.)" v={f.price} on={set("price")} type="number" />
-          <div>
-            <Label>Placering</Label>
-            <input list="location-options-add" value={f.location} onChange={set("location")} placeholder="Vælg eller skriv…" style={inputStyle} />
-            <datalist id="location-options-add">
-              {LOCATIONS.map((l) => <option key={l} value={l} />)}
-            </datalist>
-          </div>
+          <LocationPicker label="Placering" value={f.location} onChange={(v) => setF({ ...f, location: v })} options={locationOptions} inputStyle={inputStyle} />
           <div style={{ gridColumn: "1 / -1" }}>
             <Label>Overkategori</Label>
             <select value={f.category} onChange={set("category")} style={inputStyle}>
