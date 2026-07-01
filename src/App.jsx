@@ -620,6 +620,21 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 4
               <div style={{ fontSize: 13, color: "#94a3b8", marginTop: 10 }}>Ingen billeder endnu. Klik “Tilføj” for at uploade (op til {MAX_IMAGES}).</div>
             )}
           </Section>
+          <Section title="Overkategori" icon={Tag}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {CATEGORY_ORDER.map((cat) => {
+                const c = CATEGORIES[cat];
+                const active = (car.category || "mainline") === cat;
+                return (
+                  <button key={cat} onClick={() => { if (!active) onUpdate(car.id, { category: cat }); }}
+                    style={{ display: "flex", alignItems: "center", gap: 7, border: `1px solid ${active ? c.color : "#d8dee8"}`, background: active ? c.color : "#fff", color: active ? "#fff" : "#475569", borderRadius: 9, padding: "8px 14px", fontSize: 13, fontWeight: 600 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 999, background: active ? "#fff" : c.color, display: "inline-block" }} />
+                    {c.label}
+                  </button>
+                );
+              })}
+            </div>
+          </Section>
           <Section title="Skift status" icon={Wrench}>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
               {STATUS_ORDER.map((s) => {
