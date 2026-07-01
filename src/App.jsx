@@ -80,7 +80,7 @@ const CATEGORIES = {
   private:  { label: "Private collection", color: "#7c3aed" },
   dookie:   { label: "Dookie",             color: "#92400e" },
 };
-const CATEGORY_ORDER = ["engros", "mainline", "private", "dookie"];
+const CATEGORY_ORDER = ["mainline", "engros", "private", "dookie"];
 
 const kr = (n) => n == null ? "—" : new Intl.NumberFormat("da-DK").format(n) + " kr.";
 const profit = (car) => (car.price != null && car.purchase_price != null) ? car.price - car.purchase_price : null;
