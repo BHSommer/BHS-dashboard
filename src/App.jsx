@@ -338,8 +338,8 @@ function CarCard({ car, onClick }) {
   const s = STATUSES[car.status];
   const cat = CATEGORIES[car.category || "mainline"];
   return (
-    <button onClick={onClick} className="fade" style={{ textAlign: "left", background: "#fff", border: `2px solid ${cat.color}`, borderRadius: 13, padding: 0, overflow: "hidden", display: "block", width: "100%", transition: "box-shadow .15s, transform .15s" }}
-      onMouseEnter={(e) => { e.currentTarget.style.boxShadow = `0 8px 22px ${cat.color}33`; e.currentTarget.style.transform = "translateY(-2px)"; }}
+    <button onClick={onClick} className="fade" style={{ textAlign: "left", background: "#fff", border: "1px solid #e2e8f0", borderRadius: 13, padding: 0, overflow: "hidden", display: "block", width: "100%", transition: "box-shadow .15s, transform .15s" }}
+      onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 8px 22px rgba(15,23,42,.10)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
       onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.transform = "none"; }}>
       <div style={{ height: 5, background: s.color }} />
       {(() => {
@@ -360,14 +360,14 @@ function CarCard({ car, onClick }) {
         );
       })()}
       <div style={{ padding: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 7, fontSize: 12, fontWeight: 700, color: cat.color, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+          <span style={{ width: 7, height: 7, borderRadius: 999, background: cat.color, display: "inline-block" }} />
+          {cat.label}
+        </div>
         <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.01em" }}>{car.make} {car.model}</div>
         <div style={{ fontSize: 13, color: "#64748b", marginTop: 2 }}>{car.year} · {car.plate}</div>
-        <div style={{ margin: "13px 0 12px", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+        <div style={{ margin: "13px 0 12px" }}>
           <StatusPill status={car.status} small />
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#f8fafc", border: "1px solid #e2e8f0", color: cat.color, borderRadius: 999, padding: "3px 9px", fontSize: 12, fontWeight: 600 }}>
-            <span style={{ width: 7, height: 7, borderRadius: 999, background: cat.color, display: "inline-block" }} />
-            {cat.label}
-          </span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#475569", borderTop: "1px solid #f1f5f9", paddingTop: 11 }}>
           <span>{new Intl.NumberFormat("da-DK").format(car.km || 0)} km</span>
