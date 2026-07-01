@@ -89,9 +89,8 @@ const CATEGORIES = {
   mainline: { label: "Mainline",           color: "#2563eb" },
   private:  { label: "Private collection", color: "#7c3aed" },
   dookie:   { label: "Dookie",             color: "#92400e" },
-  solgte:   { label: "Solgte biler",       color: "#475569" },
 };
-const CATEGORY_ORDER = ["mainline", "engros", "private", "dookie", "solgte"];
+const CATEGORY_ORDER = ["mainline", "engros", "private", "dookie"];
 
 const kr = (n) => n == null ? "—" : new Intl.NumberFormat("da-DK").format(n) + " kr.";
 const profit = (car) => (car.price != null && car.purchase_price != null) ? car.price - car.purchase_price : null;
@@ -113,6 +112,10 @@ const formatDateInput = (raw) => {
   const parts = [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)].filter(Boolean);
   return parts.join("-");
 };
+const todayDDMMYYYY = () => {
+  const d = new Date();
+  return [String(d.getDate()).padStart(2, "0"), String(d.getMonth() + 1).padStart(2, "0"), d.getFullYear()].join("-");
+};
 
 export default function App() {
   const [cars, setCars] = useState(null);
@@ -121,6 +124,7 @@ export default function App() {
   const [filter, setFilter] = useState("all");
   const [catFilter, setCatFilter] = useState("all");
   const [locFilter, setLocFilter] = useState("all");
+  const [soldFilter, setSoldFilter] = useState("unsold");
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState(null);
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -209,26 +213,32 @@ export default function App() {
 
   const selectedCar = cars.find((c) => c.id === selected);
 
-  // Biler der matcher den valgte overkategori — status- og placerings-tal
-  // beregnes ud fra denne, så de opdaterer sig når man vælger en kategori.
-  const carsInCat = catFilter === "all" ? cars : cars.filter((c) => (c.category || "mainline") === catFilter);
+  // Øverste niveau: solgt / ikke solgt. Alt andet bygges ovenpå denne.
+  const isSold = (c) => c.sold === true;
+  const soldScope = soldFilter === "all" ? cars
+    : soldFilter === "sold" ? cars.filter(isSold)
+    : cars.filter((c) => !isSold(c));
+  const soldCounts = { all: cars.length, sold: cars.filter(isSold).length, unsold: cars.filter((c) => !isSold(c)).length };
+
+  // Biler der matcher solgt-niveau + valgt overkategori — status- og placerings-tal
+  // beregnes ud fra denne, så de opdaterer sig når man vælger kategori eller solgt-status.
+  const carsInCat = catFilter === "all" ? soldScope : soldScope.filter((c) => (c.category || "mainline") === catFilter);
 
   const counts = STATUS_ORDER.reduce((a, s) => { a[s] = carsInCat.filter((c) => c.status === s).length; return a; }, {});
 
-  // Kategori-tællinger (altid på tværs af hele flåden, så man kan skifte kategori)
-  const catCounts = CATEGORY_ORDER.reduce((a, cat) => { a[cat] = cars.filter((c) => (c.category || "mainline") === cat).length; return a; }, {});
+  // Kategori-tællinger (inden for valgt solgt-niveau, så man kan skifte kategori)
+  const catCounts = CATEGORY_ORDER.reduce((a, cat) => { a[cat] = soldScope.filter((c) => (c.category || "mainline") === cat).length; return a; }, {});
 
-  // Placerings-tællinger — også afhængige af valgt kategori.
+  // Placerings-tællinger — afhængige af solgt-niveau + valgt kategori.
   const usedLocations = Array.from(new Set(cars.map((c) => (c.location || "").trim()).filter(Boolean)));
   const allLocations = [...LOCATIONS, ...usedLocations.filter((l) => !LOCATIONS.includes(l))];
   const locCounts = allLocations.reduce((a, loc) => { a[loc] = carsInCat.filter((c) => (c.location || "").trim() === loc).length; return a; }, {});
   // Sortér placeringer fra flest til færrest biler
   const locationList = [...allLocations].sort((a, b) => (locCounts[b] || 0) - (locCounts[a] || 0));
 
-  // Biler i den valgte overkategori (bruges til lagerværdi)
-  // Købs- og salgsværdi pr. kategori (til oversigten på forsiden)
+  // Lagerværdi — beregnes inden for det valgte solgt-niveau.
   const stockByCat = CATEGORY_ORDER.reduce((acc, cat) => {
-    const list = cars.filter((c) => (c.category || "mainline") === cat);
+    const list = soldScope.filter((c) => (c.category || "mainline") === cat);
     acc[cat] = {
       buy: list.reduce((s, c) => s + (c.purchase_price || 0), 0),
       sell: list.reduce((s, c) => s + (c.price || 0), 0),
@@ -237,18 +247,19 @@ export default function App() {
     return acc;
   }, {});
   const stockTotal = {
-    buy: cars.reduce((s, c) => s + (c.purchase_price || 0), 0),
-    sell: cars.reduce((s, c) => s + (c.price || 0), 0),
-    count: cars.length,
+    buy: soldScope.reduce((s, c) => s + (c.purchase_price || 0), 0),
+    sell: soldScope.reduce((s, c) => s + (c.price || 0), 0),
+    count: soldScope.length,
   };
 
   const filtered = cars.filter((c) => {
+    const msold = soldFilter === "all" || (soldFilter === "sold" ? isSold(c) : !isSold(c));
     const mf = filter === "all" || c.status === filter;
     const mc = catFilter === "all" || (c.category || "mainline") === catFilter;
     const ml = locFilter === "all" || (c.location || "").trim() === locFilter;
     const q = query.toLowerCase().trim();
     const mq = !q || `${c.make} ${c.model} ${c.plate} ${c.year}`.toLowerCase().includes(q);
-    return mf && mc && ml && mq;
+    return msold && mf && mc && ml && mq;
   });
 
   return (
@@ -264,7 +275,8 @@ export default function App() {
       ) : (
         <>
           <Header total={carsInCat.length} counts={counts} />
-          <CategoryBar catFilter={catFilter} setCatFilter={setCatFilter} catCounts={catCounts} total={cars.length} />
+          <SoldBar soldFilter={soldFilter} setSoldFilter={setSoldFilter} soldCounts={soldCounts} />
+          <CategoryBar catFilter={catFilter} setCatFilter={setCatFilter} catCounts={catCounts} total={soldScope.length} />
           <StockValue byCat={stockByCat} total={stockTotal} hidden={hidePrices} onReveal={() => setHidePrices(false)} onHide={() => setHidePrices(true)} />
           <Toolbar query={query} setQuery={setQuery} filter={filter} setFilter={setFilter} counts={counts} total={cars.length} onAdd={() => setAdding(true)} />
           <LocationBar locFilter={locFilter} setLocFilter={setLocFilter} locList={locationList} locCounts={locCounts} total={cars.length} />
@@ -331,6 +343,28 @@ function Stat({ n, label, accent = "#0f172a" }) {
     <div style={{ textAlign: "right" }}>
       <div style={{ fontSize: 24, fontWeight: 700, color: accent, lineHeight: 1 }}>{n}</div>
       <div style={{ fontSize: 12, color: "#64748b", marginTop: 3 }}>{label}</div>
+    </div>
+  );
+}
+
+function SoldBar({ soldFilter, setSoldFilter, soldCounts }) {
+  const chips = [
+    { key: "unsold", label: "Ikke solgte", color: "#1f9d55" },
+    { key: "sold", label: "Solgte biler", color: "#475569" },
+    { key: "all", label: "Alle", color: "#0f172a" },
+  ];
+  return (
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+      {chips.map((c) => {
+        const active = soldFilter === c.key;
+        return (
+          <button key={c.key} onClick={() => setSoldFilter(c.key)}
+            style={{ display: "flex", alignItems: "center", gap: 8, border: active ? `1px solid ${c.color}` : "1px solid #d8dee8", background: active ? c.color : "#fff", color: active ? "#fff" : "#475569", borderRadius: 10, padding: "10px 18px", fontSize: 15, fontWeight: 700 }}>
+            {c.label}
+            <span style={{ fontSize: 13, opacity: 0.75 }}>{soldCounts[c.key] || 0}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -540,9 +574,16 @@ function CarCard({ car, onClick }) {
         );
       })()}
       <div style={{ padding: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 7, fontSize: 12, fontWeight: 700, color: cat.color, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-          <span style={{ width: 7, height: 7, borderRadius: 999, background: cat.color, display: "inline-block" }} />
-          {cat.label}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, color: cat.color, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+            <span style={{ width: 7, height: 7, borderRadius: 999, background: cat.color, display: "inline-block" }} />
+            {cat.label}
+          </div>
+          {car.sold && (
+            <span style={{ background: "#475569", color: "#fff", borderRadius: 5, padding: "1px 7px", fontSize: 10, fontWeight: 700, letterSpacing: "0.04em" }}>
+              SOLGT{car.sold_date ? ` · ${car.sold_date}` : ""}
+            </span>
+          )}
         </div>
         <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.01em" }}>{car.make} {car.model}</div>
         <div style={{ fontSize: 13, color: "#64748b", marginTop: 2 }}>{car.year} · {car.plate}</div>
@@ -570,9 +611,19 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 4
   const [selectedImgs, setSelectedImgs] = useState([]);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(null);
+  const [soldDateDraft, setSoldDateDraft] = useState(car.sold_date || "");
   useEffect(() => { setNotesDraft(car.notes || ""); }, [car.id]);
+  useEffect(() => { setSoldDateDraft(car.sold_date || ""); }, [car.id]);
   useEffect(() => { onViewerChange?.(viewerIndex !== null); }, [viewerIndex, onViewerChange]);
   useEffect(() => { setViewerIndex(null); setSelectMode(false); setSelectedImgs([]); setEditing(false); }, [car.id]);
+
+  const markSold = () => {
+    const date = car.sold_date || todayDDMMYYYY();
+    setSoldDateDraft(date);
+    onUpdate(car.id, { sold: true, sold_date: date });
+  };
+  const markUnsold = () => onUpdate(car.id, { sold: false, sold_date: null });
+  const saveSoldDate = () => onUpdate(car.id, { sold_date: soldDateDraft.trim() || null });
 
   const startEdit = () => {
     setForm({
@@ -742,6 +793,7 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 4
               <Field label="Placering" value={car.location || "—"} />
               <Field label="Årgang" value={car.year} />
               <Field label="Senest syn" value={car.last_inspection || "—"} />
+              {car.sold && <Field label="Solgt" value={car.sold_date || "—"} valueColor="#475569" />}
             </div>
           )}
           <Section title={`Billeder (${images.length}/${MAX_IMAGES})`} icon={Camera}>
@@ -804,6 +856,32 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 4
             {imgError && <div style={{ color: "#b91c1c", fontSize: 13, marginTop: 10 }}>{imgError}</div>}
             {images.length === 0 && !imgError && (
               <div style={{ fontSize: 13, color: "#94a3b8", marginTop: 10 }}>Ingen billeder endnu. Klik “Tilføj” for at uploade (op til {MAX_IMAGES}).</div>
+            )}
+          </Section>
+          <Section title="Salg" icon={Tag}>
+            {car.sold ? (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#eef1f5", color: "#475569", borderRadius: 999, padding: "5px 12px", fontSize: 13, fontWeight: 700 }}>
+                    <Tag size={14} /> Solgt
+                  </span>
+                  <button onClick={markUnsold}
+                    style={{ background: "#fff", border: "1px solid #d8dee8", color: "#475569", borderRadius: 9, padding: "7px 13px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                    Marker som ikke solgt
+                  </button>
+                </div>
+                <div style={{ maxWidth: 220 }}>
+                  <div style={{ fontSize: 12, color: "#64748b", fontWeight: 500, marginBottom: 4 }}>Salgsdato (DD-MM-YYYY)</div>
+                  <input value={soldDateDraft} onChange={(e) => setSoldDateDraft(formatDateInput(e.target.value))} onBlur={saveSoldDate}
+                    placeholder="DD-MM-YYYY" inputMode="numeric"
+                    style={{ width: "100%", padding: "9px 11px", border: "1px solid #d8dee8", borderRadius: 8, fontSize: 14, outline: "none" }} />
+                </div>
+              </div>
+            ) : (
+              <button onClick={markSold}
+                style={{ display: "flex", alignItems: "center", gap: 6, background: "#0f172a", color: "#fff", border: "none", borderRadius: 9, padding: "9px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+                <Tag size={15} /> Marker som solgt
+              </button>
             )}
           </Section>
           <Section title="Overkategori" icon={Tag}>
