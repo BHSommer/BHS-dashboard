@@ -6,13 +6,43 @@ import {
 } from "lucide-react";
 import { supabase } from "./supabase.js";
 
+// ---- Billede-komprimering --------------------------------------------------
+// Skrumper billedet til maks 1600px på længste led og gemmer som JPEG,
+// så både storage-forbrug og båndbredde falder markant.
+async function compressImage(file, maxDim = 1600, quality = 0.8) {
+  // GIF/SVG og små filer springes over (kan ikke/behøver ikke komprimeres)
+  if (!file.type.startsWith("image/") || file.type === "image/gif" || file.type === "image/svg+xml") {
+    return file;
+  }
+  try {
+    const bitmap = await createImageBitmap(file);
+    let { width, height } = bitmap;
+    if (width > maxDim || height > maxDim) {
+      const scale = Math.min(maxDim / width, maxDim / height);
+      width = Math.round(width * scale);
+      height = Math.round(height * scale);
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = width; canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close?.();
+    const blob = await new Promise((res) => canvas.toBlob(res, "image/jpeg", quality));
+    if (!blob) return file;
+    // Brug kun det komprimerede hvis det faktisk er mindre
+    if (blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+  } catch {
+    return file; // fald tilbage til original hvis noget fejler
+  }
+}
+
 // ---- Billede-upload til Supabase Storage -----------------------------------
 async function uploadCarImage(carId, file) {
-  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-  const path = `${carId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const path = `${carId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
   const { error: upErr } = await supabase.storage
     .from("car-images")
-    .upload(path, file, { upsert: true, cacheControl: "3600" });
+    .upload(path, file, { upsert: true, cacheControl: "3600", contentType: file.type || "image/jpeg" });
   if (upErr) throw upErr;
   const { data } = supabase.storage.from("car-images").getPublicUrl(path);
   return data.publicUrl;
@@ -22,8 +52,9 @@ async function uploadCarImages(carId, files) {
   const urls = [];
   for (const file of files) {
     if (!file.type.startsWith("image/")) continue;
-    if (file.size > 8 * 1024 * 1024) throw new Error(`"${file.name}" er for stort (max 8 MB).`);
-    urls.push(await uploadCarImage(carId, file));
+    if (file.size > 25 * 1024 * 1024) throw new Error(`"${file.name}" er for stort (max 25 MB).`);
+    const compressed = await compressImage(file);
+    urls.push(await uploadCarImage(carId, compressed));
   }
   return urls;
 }
