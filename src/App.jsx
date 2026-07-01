@@ -69,11 +69,10 @@ const STATUSES = {
   service:   { label: "Service / klargøring", color: "#0369a1", bg: "#e6f2fb", icon: Gauge },
   sold:      { label: "Solgt",         color: "#475569", bg: "#eef1f5", icon: Tag },
   attention: { label: "Skal tjekkes",  color: "#b91c1c", bg: "#fcebea", icon: AlertTriangle },
+  sanjar:    { label: "Sanjar",        color: "#0891b2", bg: "#e0f5fa", icon: MapPin },
+  roman:     { label: "Roman",         color: "#be185d", bg: "#fce7f0", icon: MapPin },
 };
-const STATUS_ORDER = ["incoming", "service", "body", "paint", "attention", "available", "listed", "sold"];
-
-// Foruddefinerede placeringer (man kan også skrive en egen)
-const LOCATIONS = ["Sanjar", "Roman", "T-by", "Butik", "Ronnie", "Jan"];
+const STATUS_ORDER = ["incoming", "service", "body", "paint", "attention", "sanjar", "roman", "available", "listed", "sold"];
 
 const CATEGORIES = {
   engros:   { label: "Engros",             color: "#eab308" },
@@ -103,7 +102,6 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
   const [catFilter, setCatFilter] = useState("all");
-  const [locFilter, setLocFilter] = useState("all");
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState(null);
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -195,11 +193,6 @@ export default function App() {
   // Kategori-tællinger
   const catCounts = CATEGORY_ORDER.reduce((a, cat) => { a[cat] = cars.filter((c) => (c.category || "mainline") === cat).length; return a; }, {});
 
-  // Placerings-tællinger. Alle faste + eventuelle egne der forekommer i data.
-  const usedLocations = Array.from(new Set(cars.map((c) => (c.location || "").trim()).filter(Boolean)));
-  const locationList = [...LOCATIONS, ...usedLocations.filter((l) => !LOCATIONS.includes(l))];
-  const locCounts = locationList.reduce((a, loc) => { a[loc] = cars.filter((c) => (c.location || "").trim() === loc).length; return a; }, {});
-
   // Biler i den valgte overkategori (bruges til lagerværdi)
   // Købs- og salgsværdi pr. kategori (til oversigten på forsiden)
   const stockByCat = CATEGORY_ORDER.reduce((acc, cat) => {
@@ -220,10 +213,9 @@ export default function App() {
   const filtered = cars.filter((c) => {
     const mf = filter === "all" || c.status === filter;
     const mc = catFilter === "all" || (c.category || "mainline") === catFilter;
-    const ml = locFilter === "all" || (c.location || "").trim() === locFilter;
     const q = query.toLowerCase().trim();
     const mq = !q || `${c.make} ${c.model} ${c.plate} ${c.year}`.toLowerCase().includes(q);
-    return mf && mc && ml && mq;
+    return mf && mc && mq;
   });
 
   return (
@@ -242,7 +234,6 @@ export default function App() {
           <CategoryBar catFilter={catFilter} setCatFilter={setCatFilter} catCounts={catCounts} total={cars.length} />
           <StockValue byCat={stockByCat} total={stockTotal} />
           <Toolbar query={query} setQuery={setQuery} filter={filter} setFilter={setFilter} counts={counts} total={cars.length} onAdd={() => setAdding(true)} />
-          <LocationBar locFilter={locFilter} setLocFilter={setLocFilter} locList={locationList} locCounts={locCounts} total={cars.length} />
           <div style={grid}>
             {filtered.map((c) => <CarCard key={c.id} car={c} onClick={() => openCar(c.id)} />)}
           </div>
@@ -415,29 +406,6 @@ function Toolbar({ query, setQuery, filter, setFilter, counts, total, onAdd }) {
 
 const grid = { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))", gap: 14 };
 const empty = { textAlign: "center", padding: "60px 20px" };
-
-function LocationBar({ locFilter, setLocFilter, locList, locCounts, total }) {
-  const chips = [{ key: "all", label: "Alle placeringer", n: total }, ...locList.map((loc) => ({ key: loc, label: loc, n: locCounts[loc] || 0 }))];
-  return (
-    <div style={{ marginBottom: 18 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 9 }}>
-        <MapPin size={15} color="#64748b" />
-        <span style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "#475569" }}>Placering</span>
-      </div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {chips.map((c) => {
-          const active = locFilter === c.key;
-          return (
-            <button key={c.key} onClick={() => setLocFilter(c.key)}
-              style={{ border: active ? "1px solid #0f172a" : "1px solid #d8dee8", background: active ? "#0f172a" : "#fff", color: active ? "#fff" : "#475569", borderRadius: 999, padding: "6px 13px", fontSize: 13, fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>
-              {c.label}<span style={{ fontSize: 12, opacity: 0.7 }}>{c.n}</span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 function StatusPill({ status, small }) {
   const s = STATUSES[status]; const Icon = s.icon;
@@ -650,15 +618,7 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 4
               <EditField label="Kilometer" value={form.km} onChange={(v) => setForm({ ...form, km: v })} type="number" />
               <EditField label="Købspris (kr.)" value={form.purchase_price} onChange={(v) => setForm({ ...form, purchase_price: v })} type="number" />
               <EditField label="Salgspris (kr.)" value={form.price} onChange={(v) => setForm({ ...form, price: v })} type="number" />
-              <div>
-                <div style={{ fontSize: 12, color: "#64748b", fontWeight: 500, marginBottom: 4 }}>Placering</div>
-                <input list="location-options" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })}
-                  placeholder="Vælg eller skriv…"
-                  style={{ width: "100%", padding: "9px 11px", border: "1px solid #d8dee8", borderRadius: 8, fontSize: 14, outline: "none" }} />
-                <datalist id="location-options">
-                  {LOCATIONS.map((l) => <option key={l} value={l} />)}
-                </datalist>
-              </div>
+              <EditField label="Placering" value={form.location} onChange={(v) => setForm({ ...form, location: v })} />
               <div>
                 <div style={{ fontSize: 12, color: "#64748b", fontWeight: 500, marginBottom: 4 }}>Overkategori</div>
                 <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
@@ -904,13 +864,7 @@ function AddModal({ onClose, onAdd }) {
           <Input label="Kilometer" v={f.km} on={set("km")} type="number" />
           <Input label="Købspris (kr.)" v={f.purchase_price} on={set("purchase_price")} type="number" />
           <Input label="Salgspris (kr.)" v={f.price} on={set("price")} type="number" />
-          <div>
-            <Label>Placering</Label>
-            <input list="location-options-add" value={f.location} onChange={set("location")} placeholder="Vælg eller skriv…" style={inputStyle} />
-            <datalist id="location-options-add">
-              {LOCATIONS.map((l) => <option key={l} value={l} />)}
-            </datalist>
-          </div>
+          <Input label="Placering" v={f.location} on={set("location")} />
           <div style={{ gridColumn: "1 / -1" }}>
             <Label>Overkategori</Label>
             <select value={f.category} onChange={set("category")} style={inputStyle}>
