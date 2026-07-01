@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Car, Wrench, PaintBucket, CheckCircle2, Clock, AlertTriangle,
   Plus, X, Search, Trash2, ChevronLeft, Tag, Gauge, FileText, RefreshCw,
-  ImagePlus, Loader2, Camera, CheckSquare, Check, Pencil, Truck, MapPin, Eye, EyeOff
+  ImagePlus, Loader2, Camera, CheckSquare, Check, Pencil, Truck, MapPin
 } from "lucide-react";
 import { supabase } from "./supabase.js";
 
@@ -105,11 +105,11 @@ const profitColor = (car) => {
 };
 const today = () => new Date().toISOString().slice(0, 10);
 
-// Formatér input til "dd mm yyyy" mens man skriver (kun cifre, auto-mellemrum)
+// Formatér input til "DD-MM-YYYY" mens man skriver (kun cifre, auto-bindestreg)
 const formatDateInput = (raw) => {
   const digits = raw.replace(/\D/g, "").slice(0, 8);
   const parts = [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)].filter(Boolean);
-  return parts.join(" ");
+  return parts.join("-");
 };
 
 export default function App() {
@@ -122,7 +122,7 @@ export default function App() {
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState(null);
   const [viewerOpen, setViewerOpen] = useState(false);
-  const [hidePrices, setHidePrices] = useState(false);
+  const [hidePrices, setHidePrices] = useState(true);
   const SIDEBAR_W = 460;
 
   // Initial load + realtime subscription so every device stays in sync
@@ -258,7 +258,7 @@ export default function App() {
         <>
           <Header total={cars.length} counts={counts} />
           <CategoryBar catFilter={catFilter} setCatFilter={setCatFilter} catCounts={catCounts} total={cars.length} />
-          <StockValue byCat={stockByCat} total={stockTotal} hidden={hidePrices} onToggle={() => setHidePrices((v) => !v)} />
+          <StockValue byCat={stockByCat} total={stockTotal} hidden={hidePrices} onReveal={() => setHidePrices(false)} onHide={() => setHidePrices(true)} />
           <Toolbar query={query} setQuery={setQuery} filter={filter} setFilter={setFilter} counts={counts} total={cars.length} onAdd={() => setAdding(true)} />
           <LocationBar locFilter={locFilter} setLocFilter={setLocFilter} locList={locationList} locCounts={locCounts} total={cars.length} />
           <div style={grid}>
@@ -348,17 +348,49 @@ function CategoryBar({ catFilter, setCatFilter, catCounts, total }) {
   );
 }
 
-function StockValue({ byCat, total, hidden, onToggle }) {
-  const fmt = (n) => hidden ? "•••••" : new Intl.NumberFormat("da-DK").format(n) + " kr.";
+function StockValue({ byCat, total, hidden, onReveal, onHide }) {
+  const fmt = (n) => new Intl.NumberFormat("da-DK").format(n) + " kr.";
+  const [prompting, setPrompting] = useState(false);
+  const [code, setCode] = useState("");
+  const [wrong, setWrong] = useState(false);
+
+  const submitCode = () => {
+    if (code.trim().toLowerCase() === "turbo") {
+      onReveal(); setPrompting(false); setCode(""); setWrong(false);
+    } else {
+      setWrong(true);
+    }
+  };
+
   return (
     <div style={{ marginBottom: 18 }}>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
-        <button onClick={onToggle}
-          style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", border: "1px solid #d8dee8", color: "#475569", borderRadius: 9, padding: "7px 13px", fontSize: 13, fontWeight: 600 }}>
-          {hidden ? <Eye size={15} /> : <EyeOff size={15} />}
-          {hidden ? "Vis priser" : "Skjul priser"}
-        </button>
-      </div>
+      {hidden ? (
+        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, marginBottom: 0 }}>
+          {prompting ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <input type="password" value={code} autoFocus
+                onChange={(e) => { setCode(e.target.value); setWrong(false); }}
+                onKeyDown={(e) => { if (e.key === "Enter") submitCode(); if (e.key === "Escape") { setPrompting(false); setCode(""); setWrong(false); } }}
+                placeholder="Kode"
+                style={{ width: 120, padding: "7px 11px", border: `1px solid ${wrong ? "#dc2626" : "#d8dee8"}`, borderRadius: 8, fontSize: 13, outline: "none" }} />
+              <button onClick={submitCode} style={{ background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "7px 12px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>OK</button>
+              <button onClick={() => { setPrompting(false); setCode(""); setWrong(false); }} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", padding: 4 }}><X size={16} /></button>
+            </div>
+          ) : (
+            // Blank knap — synlig, men uden tekst der afslører hvad den gør
+            <button onClick={() => setPrompting(true)} title="" aria-label="."
+              style={{ width: 34, height: 20, borderRadius: 6, background: "#f1f5f9", border: "1px solid #d8dee8", cursor: "pointer", padding: 0 }} />
+          )}
+        </div>
+      ) : (
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+          {/* Blank knap til at skjule igen — synlig, men uden tekst */}
+          <button onClick={onHide} title="" aria-label="."
+            style={{ width: 34, height: 20, borderRadius: 6, background: "#f1f5f9", border: "1px solid #d8dee8", cursor: "pointer", padding: 0 }} />
+        </div>
+      )}
+      {!hidden && (
+      <>
       {/* Total for hele flåden */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 12 }}>
         <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 13, padding: "16px 18px" }}>
@@ -369,7 +401,7 @@ function StockValue({ byCat, total, hidden, onToggle }) {
         <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 13, padding: "16px 18px" }}>
           <div style={{ fontSize: 13, color: "#64748b", marginBottom: 4 }}>Lagerværdi salg <span style={{ color: "#94a3b8" }}>· hele flåden</span></div>
           <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", color: "#1f9d55" }}>{fmt(total.sell)}</div>
-          <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 3 }}>Avance: {hidden ? "•••••" : ((total.sell - total.buy) >= 0 ? "+" : "") + fmt(total.sell - total.buy)}</div>
+          <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 3 }}>Avance: {(total.sell - total.buy) >= 0 ? "+" : ""}{fmt(total.sell - total.buy)}</div>
         </div>
       </div>
 
@@ -398,13 +430,15 @@ function StockValue({ byCat, total, hidden, onToggle }) {
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, paddingTop: 6, borderTop: "1px solid #f1f5f9" }}>
                 <span style={{ color: "#64748b" }}>Avance</span>
                 <span style={{ fontWeight: 700, color: (d.sell - d.buy) >= 0 ? "#1f9d55" : "#dc2626" }}>
-                  {hidden ? "•••••" : ((d.sell - d.buy) >= 0 ? "+" : "") + fmt(d.sell - d.buy)}
+                  {(d.sell - d.buy) >= 0 ? "+" : ""}{fmt(d.sell - d.buy)}
                 </span>
               </div>
             </div>
           );
         })}
       </div>
+      </>
+      )}
     </div>
   );
 }
@@ -679,9 +713,9 @@ function Detail({ car, onBack, onSetStatus, onUpdate, onRemove, sidebarWidth = 4
               <EditField label="Salgspris (kr.)" value={form.price} onChange={(v) => setForm({ ...form, price: v })} type="number" />
               <LocationPicker label="Placering" value={form.location} onChange={(v) => setForm({ ...form, location: v })} options={locationOptions} />
               <div>
-                <div style={{ fontSize: 12, color: "#64748b", fontWeight: 500, marginBottom: 4 }}>Senest syn (dd mm yyyy)</div>
+                <div style={{ fontSize: 12, color: "#64748b", fontWeight: 500, marginBottom: 4 }}>Senest syn (DD-MM-YYYY)</div>
                 <input value={form.last_inspection} onChange={(e) => setForm({ ...form, last_inspection: formatDateInput(e.target.value) })}
-                  placeholder="dd mm yyyy" inputMode="numeric"
+                  placeholder="DD-MM-YYYY" inputMode="numeric"
                   style={{ width: "100%", padding: "9px 11px", border: "1px solid #d8dee8", borderRadius: 8, fontSize: 14, outline: "none" }} />
               </div>
               <div>
@@ -963,9 +997,9 @@ function AddModal({ onClose, onAdd, locationOptions = LOCATIONS }) {
           <Input label="Købspris (kr.)" v={f.purchase_price} on={set("purchase_price")} type="number" />
           <Input label="Salgspris (kr.)" v={f.price} on={set("price")} type="number" />
           <div>
-            <Label>Senest syn (dd mm yyyy)</Label>
+            <Label>Senest syn (DD-MM-YYYY)</Label>
             <input value={f.last_inspection} onChange={(e) => setF({ ...f, last_inspection: formatDateInput(e.target.value) })}
-              placeholder="dd mm yyyy" inputMode="numeric" style={inputStyle} />
+              placeholder="DD-MM-YYYY" inputMode="numeric" style={inputStyle} />
           </div>
           <LocationPicker label="Placering" value={f.location} onChange={(v) => setF({ ...f, location: v })} options={locationOptions} inputStyle={inputStyle} />
           <div style={{ gridColumn: "1 / -1" }}>
