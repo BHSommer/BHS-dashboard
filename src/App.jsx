@@ -73,7 +73,7 @@ const STATUSES = {
 const STATUS_ORDER = ["incoming", "service", "body", "paint", "attention", "available", "listed", "sold"];
 
 // Foruddefinerede placeringer (man kan også skrive en egen)
-const LOCATIONS = ["Sanjar", "Roman", "T-by", "Butik", "Ronnie", "Jan"];
+const LOCATIONS = ["Sanjar", "Roman", "T-by", "Ronnie", "Jan"];
 
 // Sikre opslag: hvis en bil har en gammel/ukendt status eller kategori
 // (fx en der er blevet fjernet), falder vi tilbage på en standard i stedet
