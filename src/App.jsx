@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Car, Wrench, PaintBucket, CheckCircle2, Clock, AlertTriangle,
   Plus, X, Search, Trash2, ChevronLeft, Tag, Gauge, FileText, RefreshCw,
-  ImagePlus, Loader2, Camera, CheckSquare, Check, Pencil, Truck
+  ImagePlus, Loader2, Camera, CheckSquare, Check, Pencil, Truck, MapPin
 } from "lucide-react";
 import { supabase } from "./supabase.js";
 
@@ -69,13 +69,14 @@ const STATUSES = {
   service:   { label: "Service / klargøring", color: "#0369a1", bg: "#e6f2fb", icon: Gauge },
   sold:      { label: "Solgt",         color: "#475569", bg: "#eef1f5", icon: Tag },
   attention: { label: "Skal tjekkes",  color: "#b91c1c", bg: "#fcebea", icon: AlertTriangle },
+  sanjar:    { label: "Sanjar",        color: "#0891b2", bg: "#e0f5fa", icon: MapPin },
 };
-const STATUS_ORDER = ["incoming", "service", "body", "paint", "attention", "available", "listed", "sold"];
+const STATUS_ORDER = ["incoming", "service", "body", "paint", "attention", "sanjar", "available", "listed", "sold"];
 
 const CATEGORIES = {
-  engros:   { label: "Engros",             color: "#7c3aed" },
-  mainline: { label: "Mainline",           color: "#0369a1" },
-  private:  { label: "Private collection", color: "#b45309" },
+  engros:   { label: "Engros",             color: "#eab308" },
+  mainline: { label: "Mainline",           color: "#2563eb" },
+  private:  { label: "Private collection", color: "#7c3aed" },
 };
 const CATEGORY_ORDER = ["engros", "mainline", "private"];
 
@@ -335,9 +336,10 @@ function StatusPill({ status, small }) {
 
 function CarCard({ car, onClick }) {
   const s = STATUSES[car.status];
+  const cat = CATEGORIES[car.category || "mainline"];
   return (
-    <button onClick={onClick} className="fade" style={{ textAlign: "left", background: "#fff", border: "1px solid #e2e8f0", borderRadius: 13, padding: 0, overflow: "hidden", display: "block", width: "100%", transition: "box-shadow .15s, transform .15s" }}
-      onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 8px 22px rgba(15,23,42,.10)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
+    <button onClick={onClick} className="fade" style={{ textAlign: "left", background: "#fff", border: `2px solid ${cat.color}`, borderRadius: 13, padding: 0, overflow: "hidden", display: "block", width: "100%", transition: "box-shadow .15s, transform .15s" }}
+      onMouseEnter={(e) => { e.currentTarget.style.boxShadow = `0 8px 22px ${cat.color}33`; e.currentTarget.style.transform = "translateY(-2px)"; }}
       onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.transform = "none"; }}>
       <div style={{ height: 5, background: s.color }} />
       {(() => {
@@ -362,15 +364,10 @@ function CarCard({ car, onClick }) {
         <div style={{ fontSize: 13, color: "#64748b", marginTop: 2 }}>{car.year} · {car.plate}</div>
         <div style={{ margin: "13px 0 12px", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
           <StatusPill status={car.status} small />
-          {(() => {
-            const cat = CATEGORIES[car.category || "mainline"];
-            return (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#f8fafc", border: "1px solid #e2e8f0", color: cat.color, borderRadius: 999, padding: "3px 9px", fontSize: 12, fontWeight: 600 }}>
-                <span style={{ width: 7, height: 7, borderRadius: 999, background: cat.color, display: "inline-block" }} />
-                {cat.label}
-              </span>
-            );
-          })()}
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#f8fafc", border: "1px solid #e2e8f0", color: cat.color, borderRadius: 999, padding: "3px 9px", fontSize: 12, fontWeight: 600 }}>
+            <span style={{ width: 7, height: 7, borderRadius: 999, background: cat.color, display: "inline-block" }} />
+            {cat.label}
+          </span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#475569", borderTop: "1px solid #f1f5f9", paddingTop: 11 }}>
           <span>{new Intl.NumberFormat("da-DK").format(car.km || 0)} km</span>
