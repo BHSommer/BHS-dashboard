@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Car, Wrench, PaintBucket, CheckCircle2, Clock, AlertTriangle,
   Plus, X, Search, Trash2, ChevronLeft, Tag, Gauge, FileText, RefreshCw,
-  ImagePlus, Loader2, Camera, CheckSquare, Check, Pencil, Truck, MapPin, Eye, EyeOff
+  ImagePlus, Loader2, Camera, CheckSquare, Check, Pencil, Truck, MapPin
 } from "lucide-react";
 import { supabase } from "./supabase.js";
 
@@ -122,7 +122,7 @@ export default function App() {
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState(null);
   const [viewerOpen, setViewerOpen] = useState(false);
-  const [hidePrices, setHidePrices] = useState(false);
+  const [hidePrices, setHidePrices] = useState(true);
   const SIDEBAR_W = 460;
 
   // Initial load + realtime subscription so every device stays in sync
@@ -258,7 +258,7 @@ export default function App() {
         <>
           <Header total={cars.length} counts={counts} />
           <CategoryBar catFilter={catFilter} setCatFilter={setCatFilter} catCounts={catCounts} total={cars.length} />
-          <StockValue byCat={stockByCat} total={stockTotal} hidden={hidePrices} onToggle={() => setHidePrices((v) => !v)} />
+          <StockValue byCat={stockByCat} total={stockTotal} hidden={hidePrices} onReveal={() => setHidePrices(false)} onHide={() => setHidePrices(true)} />
           <Toolbar query={query} setQuery={setQuery} filter={filter} setFilter={setFilter} counts={counts} total={cars.length} onAdd={() => setAdding(true)} />
           <LocationBar locFilter={locFilter} setLocFilter={setLocFilter} locList={locationList} locCounts={locCounts} total={cars.length} />
           <div style={grid}>
@@ -348,17 +348,48 @@ function CategoryBar({ catFilter, setCatFilter, catCounts, total }) {
   );
 }
 
-function StockValue({ byCat, total, hidden, onToggle }) {
+function StockValue({ byCat, total, hidden, onReveal, onHide }) {
   const fmt = (n) => new Intl.NumberFormat("da-DK").format(n) + " kr.";
+  const [prompting, setPrompting] = useState(false);
+  const [code, setCode] = useState("");
+  const [wrong, setWrong] = useState(false);
+
+  const submitCode = () => {
+    if (code.trim().toLowerCase() === "turbo") {
+      onReveal(); setPrompting(false); setCode(""); setWrong(false);
+    } else {
+      setWrong(true);
+    }
+  };
+
   return (
     <div style={{ marginBottom: 18 }}>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: hidden ? 0 : 10 }}>
-        <button onClick={onToggle}
-          style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", border: "1px solid #d8dee8", color: "#475569", borderRadius: 9, padding: "7px 13px", fontSize: 13, fontWeight: 600 }}>
-          {hidden ? <Eye size={15} /> : <EyeOff size={15} />}
-          {hidden ? "Vis lagerværdi" : "Skjul lagerværdi"}
-        </button>
-      </div>
+      {hidden ? (
+        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, marginBottom: 0 }}>
+          {prompting ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <input type="password" value={code} autoFocus
+                onChange={(e) => { setCode(e.target.value); setWrong(false); }}
+                onKeyDown={(e) => { if (e.key === "Enter") submitCode(); if (e.key === "Escape") { setPrompting(false); setCode(""); setWrong(false); } }}
+                placeholder="Kode"
+                style={{ width: 120, padding: "7px 11px", border: `1px solid ${wrong ? "#dc2626" : "#d8dee8"}`, borderRadius: 8, fontSize: 13, outline: "none" }} />
+              <button onClick={submitCode} style={{ background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "7px 12px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>OK</button>
+              <button onClick={() => { setPrompting(false); setCode(""); setWrong(false); }} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", padding: 4 }}><X size={16} /></button>
+            </div>
+          ) : (
+            // Diskret, umærket trigger — helt usynlig, kun for dem der ved den er der
+            <button onClick={() => setPrompting(true)} title=""
+              aria-label="."
+              style={{ width: 16, height: 16, borderRadius: 999, background: "transparent", border: "none", cursor: "default", padding: 0 }} />
+          )}
+        </div>
+      ) : (
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+          {/* Diskret, umærket knap til at skjule igen — intet ikon eller tekst */}
+          <button onClick={onHide} title="" aria-label="."
+            style={{ width: 16, height: 16, borderRadius: 999, background: "transparent", border: "none", cursor: "pointer", padding: 0 }} />
+        </div>
+      )}
       {!hidden && (
       <>
       {/* Total for hele flåden */}
