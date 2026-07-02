@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Car, Wrench, PaintBucket, CheckCircle2, Clock, AlertTriangle,
   Plus, X, Search, Trash2, ChevronLeft, Tag, Gauge, FileText, RefreshCw,
-  ImagePlus, Loader2, Camera, CheckSquare, Check, Pencil, Truck, MapPin
+  ImagePlus, Loader2, Camera, CheckSquare, Check, Pencil, Truck, MapPin, Download
 } from "lucide-react";
 import { supabase } from "./supabase.js";
 
@@ -262,6 +262,41 @@ export default function App() {
     return msold && mf && mc && ml && mq;
   });
 
+  const exportCSV = () => {
+    const cols = [
+      ["Mærke", (c) => c.make],
+      ["Model", (c) => c.model],
+      ["Årgang", (c) => c.year],
+      ["Nummerplade", (c) => c.plate],
+      ["VIN", (c) => c.vin],
+      ["Kilometer", (c) => c.km],
+      ["Købspris", (c) => c.purchase_price],
+      ["Salgspris", (c) => c.price],
+      ["Avance", (c) => (c.price != null && c.purchase_price != null) ? c.price - c.purchase_price : ""],
+      ["Overkategori", (c) => getCategory(c.category || "mainline").label],
+      ["Status", (c) => getStatus(c.status).label],
+      ["Placering", (c) => c.location],
+      ["Senest syn", (c) => c.last_inspection],
+      ["Solgt", (c) => c.sold ? "Ja" : "Nej"],
+      ["Salgsdato", (c) => c.sold_date],
+      ["Noter", (c) => c.notes],
+    ];
+    const esc = (v) => {
+      const s = (v == null ? "" : String(v)).replace(/"/g, '""');
+      return `"${s}"`;
+    };
+    const rows = [cols.map((c) => esc(c[0])).join(";")];
+    filtered.forEach((car) => rows.push(cols.map((c) => esc(c[1](car))).join(";")));
+    const csv = "\uFEFF" + rows.join("\r\n"); // BOM så æøå vises rigtigt i Excel
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `bilhuset-sommer-flaade-${todayDDMMYYYY()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <Shell pushBy={viewerOpen ? SIDEBAR_W : 0}>
       {error && (
@@ -278,7 +313,7 @@ export default function App() {
           <SoldBar soldFilter={soldFilter} setSoldFilter={setSoldFilter} soldCounts={soldCounts} />
           <CategoryBar catFilter={catFilter} setCatFilter={setCatFilter} catCounts={catCounts} total={soldScope.length} />
           <StockValue byCat={stockByCat} total={stockTotal} hidden={hidePrices} onReveal={() => setHidePrices(false)} onHide={() => setHidePrices(true)} />
-          <Toolbar query={query} setQuery={setQuery} filter={filter} setFilter={setFilter} counts={counts} total={cars.length} onAdd={() => setAdding(true)} />
+          <Toolbar query={query} setQuery={setQuery} filter={filter} setFilter={setFilter} counts={counts} total={cars.length} onAdd={() => setAdding(true)} onExport={exportCSV} exportCount={filtered.length} />
           <LocationBar locFilter={locFilter} setLocFilter={setLocFilter} locList={locationList} locCounts={locCounts} total={cars.length} />
           <div style={grid}>
             {filtered.map((c) => <CarCard key={c.id} car={c} onClick={() => openCar(c.id)} />)}
@@ -484,8 +519,8 @@ function StockValue({ byCat, total, hidden, onReveal, onHide }) {
   );
 }
 
-function Toolbar({ query, setQuery, filter, setFilter, counts, total, onAdd }) {
-  const chips = [{ key: "all", label: "Alle", n: total }, ...STATUS_ORDER.map((s) => ({ key: s, label: STATUSES[s].label, n: counts[s] }))];
+function Toolbar({ query, setQuery, filter, setFilter, counts, total, onAdd, onExport, exportCount }) {
+  const chips = [{ key: "all", label: "Alle", n: total }, ...STATUS_ORDER.map((s) => ({ key: s, label: getStatus(s).label, n: counts[s] }))];
   return (
     <div style={{ marginBottom: 18 }}>
       <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
@@ -494,6 +529,10 @@ function Toolbar({ query, setQuery, filter, setFilter, counts, total, onAdd }) {
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Søg model, nummerplade, årgang…"
             style={{ width: "100%", padding: "10px 12px 10px 36px", border: "1px solid #d8dee8", borderRadius: 9, fontSize: 14, background: "#fff", outline: "none" }} />
         </div>
+        <button onClick={onExport} title="Eksportér de viste biler til Excel/CSV"
+          style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", border: "1px solid #d8dee8", color: "#475569", borderRadius: 9, padding: "10px 16px", fontSize: 14, fontWeight: 600 }}>
+          <Download size={16} /> Eksportér{typeof exportCount === "number" ? ` (${exportCount})` : ""}
+        </button>
         <button onClick={onAdd} style={{ display: "flex", alignItems: "center", gap: 6, background: "#0f172a", color: "#fff", border: "none", borderRadius: 9, padding: "10px 16px", fontSize: 14, fontWeight: 600 }}>
           <Plus size={16} /> Tilføj bil
         </button>
